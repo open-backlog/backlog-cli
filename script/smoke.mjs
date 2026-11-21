@@ -81,6 +81,12 @@ try {
   if (ci.status !== 1 || JSON.parse(ci.stdout).errors !== 1) fail(`ob validate --json exited ${ci.status}: ${ci.stdout}`);
   else console.log('smoke: ob validate --json exits 1 with the errors, for CI');
 
+  // ob start: a staged git mv (--no-commit), as by hand.
+  const started = ob('start', '1.1.1', '--no-commit');
+  const staged = gitIn('status', '--porcelain').stdout;
+  if (!started.startsWith('Moved 1.1.1 to doing') || !staged.includes('R  backlog/stories/todo/1.1.1-form.md -> backlog/stories/doing/1.1.1-form.md')) fail(`ob start printed "${started.trim()}"; git status: ${staged}`);
+  else console.log('smoke: the installed ob start stages a git mv to doing');
+
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
   }

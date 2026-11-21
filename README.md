@@ -15,8 +15,8 @@ for features, epics and capabilities, and `buildOrder()` orders by number at eve
 Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
 `ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
 history; outside a git repository everything but committing still works. The commands
-arrive through 2.3; today `ob` has `init` (2.3.1), `new` (2.3.2) and `validate` (2.3.3), with `move`,
-`list` and `show` to come. Not on npm yet (`private` until 2.3.7).
+arrive through 2.3; today `ob` has `init` (2.3.1), `new` (2.3.2), `validate` (2.3.3) and `move`,
+`start` and `done` (2.3.4), with `list` and `show` to come. Not on npm yet (`private` until 2.3.7).
 
 ## Commands
 
@@ -30,6 +30,9 @@ ob new bug "Login fails"                    # no parent: this month's feature in
 ob validate                                 # every problem, with how to fix it; exit 1 on errors
 ob validate --fix                           # renumber duplicate IDs after a merge, in one commit
 ob validate --json                          # the same, for other tools
+ob start 1.1.1                              # git mv to stories/doing/ and commit: ob: move 1.1.1 to doing
+ob done 1.1.1                               # to stories/done/ (done/YYYY-MM/ with done-folders: month)
+ob move 1.1.1 todo                          # any status: todo, doing or done
 ob <command> --help        # a command's options
 ```
 
@@ -46,6 +49,11 @@ checked first (it must exist and be the right type), so a mistake writes nothing
 with no `--parent` goes into this month's feature in epic 0, creating `0-unplanned.md` and
 `0.N-YYYY-MM.md` if needed. `--edit` opens the file in `$VISUAL` or `$EDITOR` and commits what
 you save; `--no-commit` leaves committing to you.
+
+`ob move <id> <todo|doing|done>` (and `ob start`, `ob done`) is a `git mv` and a commit of just
+that rename, the same commit a hand-run `git mv` and `git commit` make, so `git log --follow`
+shows the item's history across moves. `--no-commit` leaves the `git mv` staged. Epics,
+features and capabilities don't move: their status comes from their items.
 
 `ob validate` exits 1 when there are errors (warnings alone exit 0), so it works in CI and as a
 git hook. `--fix` repairs what a merge does when two branches each add the next number: of two
@@ -79,7 +87,7 @@ The hook checks the working tree, so a fix you haven't staged still counts.
 | `test/` | Vitest tests |
 | `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new` and `ob validate` (also as a pre-commit hook), imports `open-backlog` |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new`, `ob validate` (also as a pre-commit hook) and `ob start`, imports `open-backlog` |
 
 ## Validation codes
 

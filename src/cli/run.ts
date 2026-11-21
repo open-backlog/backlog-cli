@@ -4,8 +4,8 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, ITEM_TYPES, loadBacklog, message, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
-import type { Renumbered } from '../core/index.js';
+import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, loadBacklog, message, moveItem, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import type { Renumbered, Status } from '../core/index.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
@@ -173,7 +173,74 @@ or as a git pre-commit hook.
       return errors ? 1 : 0;
     },
   },
+  move: {
+    summary: 'move a story, bug, spike or task to todo, doing or done',
+    help: `Usage: ob move <id> <todo|doing|done> [--no-commit]
+       ob start <id>      (the same as ob move <id> doing)
+       ob done <id>       (the same as ob move <id> done)
+
+Moves the item's file to stories/<status>/ with git mv and commits only that move:
+"ob: move 2.3.4 to doing". With done-folders: month in config.yml, done files into
+stories/done/YYYY-MM/. Epics, features and capabilities don't move: their status comes from
+their items.
+
+  --no-commit  stage the move (git mv), leave committing to you
+`,
+    options: { 'no-commit': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [id, status, ...extra] = positionals;
+      if (id === undefined || status === undefined || extra.length) return usageError('ob move needs an id and a status, such as: ob move 2.3.4 doing', 'move', io);
+      return moveCommand(id, status, values, io, 'move');
+    },
+  },
+  start: {
+    summary: 'ob move <id> doing',
+    help: 'Usage: ob start <id> [--no-commit]\n\nThe same as ob move <id> doing: see ob move --help.\n',
+    options: { 'no-commit': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [id, ...extra] = positionals;
+      if (id === undefined || extra.length) return usageError('ob start needs one id, such as: ob start 2.3.4', 'start', io);
+      return moveCommand(id, 'doing', values, io, 'start');
+    },
+  },
+  done: {
+    summary: 'ob move <id> done',
+    help: 'Usage: ob done <id> [--no-commit]\n\nThe same as ob move <id> done: see ob move --help.\n',
+    options: { 'no-commit': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [id, ...extra] = positionals;
+      if (id === undefined || extra.length) return usageError('ob done needs one id, such as: ob done 2.3.4', 'done', io);
+      return moveCommand(id, 'done', values, io, 'done');
+    },
+  },
 };
+
+const STATUSES: readonly Status[] = ['todo', 'doing', 'done'];
+
+/** ob move, start and done: checks the item and status, then one git mv and one commit. */
+function moveCommand(id: string, status: string, values: Values, io: Output, command: string): number {
+  if (!STATUSES.includes(status as Status)) return usageError(`"${status}" is not a status: use todo, doing or done`, command, io);
+  const cwd = realpathSync(io.cwd ?? process.cwd());
+  const b = loadBacklog(findBacklog(cwd));
+  const found = b.items.filter(i => i.id === id);
+  const item = found[0];
+  if (!item) throw new BacklogError(`no item ${id} in this backlog`);
+  if (found.length > 1) throw new BacklogError(`${found.length} items have id ${id} (${found.map(i => i.path).join(', ')}); run ob validate --fix first`);
+  if (!isStoryLevel(item)) {
+    const t = `${/^[aeiou]/.test(item.type) ? 'an' : 'a'} ${item.type}`;
+    throw new BacklogError(`${id} is ${t}, which doesn't move: only stories, bugs, spikes and tasks do. ${t[0]?.toUpperCase()}${t.slice(1)} is done when all its items are done`);
+  }
+  const shown = (p: string) => relative(cwd, join(b.dir, p));
+  if (item.status === status) {
+    io.out(`${id} is already in ${status}: ${shown(item.path)}; nothing changed.\n`);
+    return 0;
+  }
+  const r = moveItem(b, item, status as Status, { commit: values['no-commit'] !== true, ...(io.now ? { day: io.now } : {}) });
+  io.out(`Moved ${id} to ${status}: ${shown(item.path)} → ${shown(r.path)}\n`);
+  if (r.committed) io.out(`Committed: ${message.move(id, status as Status)}\n`);
+  else if (values['no-commit'] === true) io.out('Not committed (--no-commit).\n');
+  return 0;
+}
 
 export function usage(): string {
   const width = Math.max(...Object.keys(COMMANDS).map(c => c.length));
@@ -184,7 +251,7 @@ Usage: ob <command> [options]
 
 Commands:
 ${Object.entries(COMMANDS).map(([name, c]) => `  ${name.padEnd(width)}  ${c.summary}\n`).join('')}
-Run "ob <command> --help" for its options. More commands (move, list, show)
+Run "ob <command> --help" for its options. More commands (list, show)
 arrive with the CLI stories (2.3).
 
 A backlog is a folder of Markdown files in git: ${SPEC_URL}
