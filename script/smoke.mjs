@@ -2,8 +2,8 @@
 // into a temporary prefix (npm i -g, without touching your real global packages), runs
 // `ob --version`, imports 'open-backlog' by name to check the library entry loads without the
 // CLI, and reads a fixture backlog through it.
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -62,6 +62,24 @@ try {
      console.log(validateDir(${JSON.stringify(join(code, 'backlog'))}).problems.length)`], { cwd: installed, encoding: 'utf8' }).trim();
   if (initCodes !== '0' || !again.includes('nothing changed')) fail(`ob init gave ${initCodes} problems; second run said "${again.trim()}"`);
   else console.log('smoke: the installed ob init makes a backlog at the repository top, a second run changes nothing, and with the new items it validates');
+
+  // ob validate as a git pre-commit hook: a valid backlog commits, a broken one is refused, and
+  // the exit code is what CI needs (0 valid, 1 errors).
+  const hook = join(code, '.git', 'hooks', 'pre-commit');
+  writeFileSync(hook, `#!/bin/sh\nexec "${join(tmp, 'bin', 'ob')}" validate\n`);
+  chmodSync(hook, 0o755);
+  const who = { ...process.env, GIT_AUTHOR_NAME: 'Smoke', GIT_AUTHOR_EMAIL: 'smoke@example.com', GIT_COMMITTER_NAME: 'Smoke', GIT_COMMITTER_EMAIL: 'smoke@example.com' };
+  const gitIn = (...args) => spawnSync('git', args, { cwd: code, env: who, encoding: 'utf8' });
+  gitIn('add', '-A');
+  const good = gitIn('commit', '-qm', 'backlog');
+  writeFileSync(join(code, 'backlog', 'stories', 'todo', '1.1.9-lost.md'), '---\nid: 1.1.9\ntype: story\ntitle: Lost\nparent: 9.9\n---\n');
+  gitIn('add', '-A');
+  const bad = gitIn('commit', '-qm', 'broken');
+  if (good.status !== 0 || bad.status === 0 || !(bad.stdout + bad.stderr).includes('OB002')) fail(`pre-commit hook: good commit ${good.status} ${good.stderr}, broken commit ${bad.status} ${bad.stdout}${bad.stderr}`);
+  else console.log('smoke: ob validate as a pre-commit hook lets a valid backlog commit and refuses a broken one (OB002)');
+  const ci = spawnSync(join(tmp, 'bin', 'ob'), ['validate', '--json'], { cwd: code, encoding: 'utf8' });
+  if (ci.status !== 1 || JSON.parse(ci.stdout).errors !== 1) fail(`ob validate --json exited ${ci.status}: ${ci.stdout}`);
+  else console.log('smoke: ob validate --json exits 1 with the errors, for CI');
 
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);

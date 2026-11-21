@@ -15,8 +15,8 @@ for features, epics and capabilities, and `buildOrder()` orders by number at eve
 Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
 `ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
 history; outside a git repository everything but committing still works. The commands
-arrive through 2.3; today `ob` has `init` (2.3.1) and `new` (2.3.2), with `validate`, `move`, `list`
-and `show` to come. Not on npm yet (`private` until 2.3.7).
+arrive through 2.3; today `ob` has `init` (2.3.1), `new` (2.3.2) and `validate` (2.3.3), with `move`,
+`list` and `show` to come. Not on npm yet (`private` until 2.3.7).
 
 ## Commands
 
@@ -27,6 +27,9 @@ ob new epic "Checkout"                      # the next epic: epics/1-checkout.md
 ob new feature "Pay by card" --parent 1     # features/1.1-pay-by-card.md
 ob new story "Card form" --parent 1.1       # stories/todo/1.1.1-card-form.md (or bug, spike, task)
 ob new bug "Login fails"                    # no parent: this month's feature in epic 0 (0.1-2026-11)
+ob validate                                 # every problem, with how to fix it; exit 1 on errors
+ob validate --fix                           # renumber duplicate IDs after a merge, in one commit
+ob validate --json                          # the same, for other tools
 ob <command> --help        # a command's options
 ```
 
@@ -44,6 +47,29 @@ with no `--parent` goes into this month's feature in epic 0, creating `0-unplann
 `0.N-YYYY-MM.md` if needed. `--edit` opens the file in `$VISUAL` or `$EDITOR` and commits what
 you save; `--no-commit` leaves committing to you.
 
+`ob validate` exits 1 when there are errors (warnings alone exit 0), so it works in CI and as a
+git hook. `--fix` repairs what a merge does when two branches each add the next number: of two
+items with the same ID, the one added later in git history gets the next free number and its
+file is renamed with `git mv`; children that came with it (added after it, on its side of the
+merge) get the new parent. Nothing else changes, and it's one commit
+(`ob: renumber 1.1.1 to 1.1.2`).
+
+A pre-commit hook, `.git/hooks/pre-commit` (made executable with `chmod +x`), refuses a commit
+that breaks the backlog:
+
+```sh
+#!/bin/sh
+exec ob validate
+```
+
+In CI, such as a GitHub Actions step (once the package is on npm, 2.3.7):
+
+```yaml
+- run: npx --yes -p open-backlog ob validate
+```
+
+The hook checks the working tree, so a fix you haven't staged still counts.
+
 ## Layout
 
 | Path | |
@@ -53,11 +79,11 @@ you save; `--no-commit` leaves committing to you.
 | `test/` | Vitest tests |
 | `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init` and `ob new`, imports `open-backlog` |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new` and `ob validate` (also as a pre-commit hook), imports `open-backlog` |
 
 ## Validation codes
 
-Each rule in the spec has a code that never changes meaning. `ob validate` (2.3.3) prints
+Each rule in the spec has a code that never changes meaning. `ob validate` prints
 `<file>: <code> [<rule>] <what is wrong>. Fix: <how>.`
 
 | Code | Rule | | Code | Rule |

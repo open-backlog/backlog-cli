@@ -38,6 +38,7 @@ export const message = {
   move: (id: string, status: Status) => `ob: move ${id} to ${status}`,
   add: (id: string, title: string) => `ob: add ${id} ${title}`,
   edit: (id: string, what: string) => `ob: edit ${id} ${what}`,
+  renumber: (changes: { from: string; to: string }[]) => `ob: renumber ${changes.map(c => `${c.from} to ${c.to}`).join(', ')}`,
 };
 
 /**
@@ -58,6 +59,17 @@ function realPath(p: string): string {
     dir = dirname(dir);
   }
   return join(realpathSync(dir), ...rest);
+}
+
+/** True if the last commit has the file (so a move away from it is a change to commit). */
+function inHead(root: string, file: string): boolean {
+  if (!hasCommits(root)) return false;
+  try {
+    execFileSync('git', ['cat-file', '-e', `HEAD:${forGit(root, [file])[0] ?? ''}`], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** True if git tracks the file. */
@@ -95,7 +107,9 @@ export function commit(paths: string[], msg: string): boolean {
   // is neither, but the commit below still records its side of the rename.
   const toAdd = paths.filter(p => existsSync(p) || tracked(root, p));
   if (toAdd.length) git(root, ['add', '-A', '--', ...forGit(root, toAdd)]);
-  git(root, ['commit', '--quiet', '-m', msg, '--', ...forGit(root, paths)]);
+  // A path git never knew (an untracked file renamed away) can't be named in the commit.
+  const known = paths.filter(p => toAdd.includes(p) || inHead(root, p));
+  git(root, ['commit', '--quiet', '-m', msg, '--', ...forGit(root, known)]);
   return true;
 }
 
@@ -128,6 +142,33 @@ export function history(file: string): LogEntry[] {
       const [hash = '', date = '', author = '', ...subject] = l.split('\t');
       return { hash, date, author, subject: subject.join('\t') };
     });
+}
+
+/**
+ * The commit that first added a file, or null if it isn't committed (or isn't in git). Items keep
+ * their file name when they move between status folders, so this is the oldest commit that added
+ * a file of that name anywhere: exact, where git's rename guessing (--follow) can mistake two
+ * similar small files for one.
+ */
+export function addedIn(file: string): { hash: string; time: number } | null {
+  const root = repoRoot(dirname(file));
+  if (!root || !hasCommits(root)) return null;
+  const glob = `:(glob)**/${basename(file).replace(/[*?[\]\\]/g, '\\$&')}`;
+  const lines = git(root, ['log', '--no-renames', '--diff-filter=A', '--format=%H %ct', '--', glob]).split('\n').filter(Boolean);
+  const [hash, time] = (lines[lines.length - 1] ?? '').split(' ');
+  return hash ? { hash, time: Number(time) } : null;
+}
+
+/** True if commit `a` is an ancestor of commit `b` (or the same commit), in the repository holding `dir`. */
+export function isAncestor(dir: string, a: string, b: string): boolean {
+  const root = repoRoot(dir);
+  if (!root) return false;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** `git pull`, then `git push`, as the user's git is set up to do them (D3's Sync). */

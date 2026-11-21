@@ -4,7 +4,8 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addItem, BacklogError, commit, findBacklog, initBacklog, initDir, ITEM_TYPES, loadBacklog, message, repoRoot, SPEC_URL, SPEC_VERSION } from '../core/index.js';
+import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, ITEM_TYPES, loadBacklog, message, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import type { Renumbered } from '../core/index.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
@@ -126,6 +127,52 @@ Adds an item with the next free number under its parent, in a file named <id>-<s
       return 0;
     },
   },
+  validate: {
+    summary: 'check the backlog against the spec; exit 1 on errors',
+    help: `Usage: ob validate [--fix] [--no-commit] [--json]
+
+Checks every file in the backlog against the spec and prints each problem with its code, the
+file and how to fix it. Exits 1 if there are errors (warnings alone exit 0), so it can run in CI
+or as a git pre-commit hook.
+
+  --fix        renumber duplicate IDs (two branches each added the next number): the one added
+               later in git history gets the next free number and its file is renamed, and
+               children that came with it get the new parent; all in one commit
+  --no-commit  with --fix, leave committing to you
+  --json       print { backlog, valid, errors, warnings, problems, renumbered } for other tools
+`,
+    options: { fix: { type: 'boolean' }, 'no-commit': { type: 'boolean' }, json: { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      if (positionals.length) return usageError(`validate takes no arguments (got "${positionals.join(' ')}")`, 'validate', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const dir = findBacklog(cwd);
+      const json = values['json'] === true;
+      let renumbered: Renumbered[] = [];
+      let committed = false;
+      // A config.yml that can't be read is reported below, not fixed.
+      if (values['fix'] === true && validateDir(dir).backlog) ({ renumbered, committed } = fixDuplicates(dir, { commit: values['no-commit'] !== true }));
+      const { backlog, problems } = validateDir(dir);
+      const errors = problems.filter(p => p.severity === 'error').length;
+      const warnings = problems.length - errors;
+      if (json) {
+        io.out(JSON.stringify({ backlog: dir, valid: errors === 0, errors, warnings, problems, renumbered, committed }, null, 2) + '\n');
+        return errors ? 1 : 0;
+      }
+      const shown = (p: string) => relative(cwd, join(dir, p));
+      for (const r of renumbered) {
+        io.out(`Renumbered ${r.from} to ${r.to}: ${shown(r.path)} → ${shown(r.newPath)}\n`);
+        for (const c of r.children) io.out(`  parent ${r.from} → ${r.to}: ${shown(c.path)}\n`);
+      }
+      if (committed) io.out(`Committed: ${message.renumber(renumbered)}\n`);
+      for (const p of problems) io.out(formatProblem({ ...p, path: shown(p.path) }) + '\n');
+      const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+      const items = backlog ? `, ${count(backlog.items.length, 'item')}` : '';
+      io.out(problems.length
+        ? `${shown('') || '.'}/: ${count(errors, 'error')}, ${count(warnings, 'warning')}${items}\n`
+        : `${shown('') || '.'}/ is valid${items}\n`);
+      return errors ? 1 : 0;
+    },
+  },
 };
 
 export function usage(): string {
@@ -137,7 +184,7 @@ Usage: ob <command> [options]
 
 Commands:
 ${Object.entries(COMMANDS).map(([name, c]) => `  ${name.padEnd(width)}  ${c.summary}\n`).join('')}
-Run "ob <command> --help" for its options. More commands (validate, move, list, show)
+Run "ob <command> --help" for its options. More commands (move, list, show)
 arrive with the CLI stories (2.3).
 
 A backlog is a folder of Markdown files in git: ${SPEC_URL}

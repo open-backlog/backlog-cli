@@ -15,7 +15,9 @@ export { SPEC_URL, SPEC_VERSION } from './spec.js';
 export { addItem, ITEM_TYPES, SLUG_PATTERN, UNPLANNED_TYPES } from './add.js';
 export type { AddOptions, Added } from './add.js';
 
-export { changes, commit, git, history, isClean, message, monthOf, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';
+export { fixDuplicates } from './fix.js';
+export type { Renumbered } from './fix.js';
+export { addedIn, changes, commit, git, history, isAncestor, isClean, message, monthOf, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';
 export type { LogEntry } from './git.js';
 export { initBacklog, initDir, INIT_FOLDERS, INIT_README, NAME_PATTERN } from './init.js';
 export type { InitOptions, InitResult } from './init.js';
