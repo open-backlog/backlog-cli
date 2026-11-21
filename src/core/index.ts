@@ -7,7 +7,7 @@
  *   const backlog = readBacklog();          // from the working directory, walking up
  *   updateItem(backlog.dir, item, { assignee: 'ana' });   // one value changes, nothing else
  *
- * Hierarchy and progress (2.2.4), validation (2.2.5), and git and the next ID
+ * Validation (2.2.5), and git and the next ID
  * (2.2.6) are added here, story by story.
  */
 
@@ -17,6 +17,8 @@ export const SPEC_VERSION = '0.1';
 /** Where that specification is published. */
 export const SPEC_URL = 'https://openbacklog.org/spec';
 
+export { buildOrder, buildTree, columnOrder, isStoryLevel, progressOf, STORY_LEVEL_TYPES, walk } from './hierarchy.js';
+export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';
 export { findBacklog, loadBacklog, readBacklog, statusOf } from './read.js';
 export { BacklogError } from './types.js';
