@@ -6,7 +6,10 @@ at [openbacklog.org/spec](https://openbacklog.org/spec).
 
 **Status: core in progress (2.2).** The core reads a backlog: `readBacklog()` finds `backlog/`
 by walking up from the working directory and loads the config, every item with its status,
-sprints and people (2.2.2). Writing, hierarchy, validation and git follow through 2.2, and the
+sprints and people (2.2.2). It writes without losing anything: `setFields()` and `updateItem()`
+change only the characters of a value, so an unchanged file stays byte for byte the same and an
+edit is a one-line diff, and `createItem()` writes new files in the recommended shape (2.2.3).
+Hierarchy, validation and git follow through 2.2, and the
 commands through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today `ob` has
 `--version` and `--help`. Not on npm yet (`private` until 2.3.7).
 
