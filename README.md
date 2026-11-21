@@ -16,7 +16,7 @@ Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only tha
 `ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
 history; outside a git repository everything but committing still works. The commands
 arrive through 2.3; today `ob` has `init` (2.3.1), `new` (2.3.2), `validate` (2.3.3), `move`,
-`start` and `done` (2.3.4) and `list` (2.3.5), with `show` and `tree` to come. Not on npm yet (`private` until 2.3.7).
+`start` and `done` (2.3.4), `list` (2.3.5) and `show` and `tree` (2.3.6). Not on npm yet (`private` until 2.3.7).
 
 ## Commands
 
@@ -36,6 +36,8 @@ ob move 1.1.1 todo                          # any status: todo, doing or done
 ob list                                     # stories, bugs, spikes, tasks by number; done from the last 30 days
 ob list --status todo,doing --parent 1      # filter: --status --type --parent --repo --assignee --sprint
 ob list --all --json                        # every done item too; JSON for other tools
+ob show 2.3.4                               # where it sits (2-build › 2.3-cli › 2.3.4-ob-move), file, children, history
+ob tree                                     # epics and features with progress, items underneath (--depth, --all)
 ob <command> --help        # a command's options
 ```
 
@@ -62,6 +64,13 @@ features and capabilities don't move: their status comes from their items.
 colour; titles are cut to fit a terminal and never when piped. Done items show for 30 days after
 the commit that moved them to done (a note on stderr says how many older ones are left out);
 `--all` shows them all. Outside git there are no dates, so every done item shows.
+
+`ob show <id>` prints an item's place in the plan, its file, its children (with progress for a
+capability, epic or feature) and the commits that touched it, through its moves. An ID removed
+with `git rm` is found in git history and shown as its last version, marked deleted. `ob tree`
+prints the plan with each container's status and `done/total (percent)`, worked out by the core
+library, and the items under it; old done items are left out as in `ob list` (the counts include
+them). Both take `--json`.
 
 `ob validate` exits 1 when there are errors (warnings alone exit 0), so it works in CI and as a
 git hook. `--fix` repairs what a merge does when two branches each add the next number: of two
@@ -95,7 +104,7 @@ The hook checks the working tree, so a fix you haven't staged still counts.
 | `test/` | Vitest tests |
 | `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new`, `ob validate` (also as a pre-commit hook) `ob start` and `ob list`, imports `open-backlog` |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new`, `ob validate` (also as a pre-commit hook) `ob start`, `ob list`, `ob tree` and `ob show`, imports `open-backlog` |
 
 ## Validation codes
 

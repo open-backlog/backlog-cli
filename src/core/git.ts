@@ -133,15 +133,24 @@ export interface LogEntry {
   subject: string;
 }
 
-/** A file's history, newest first, following it through moves. Empty outside git. */
+/**
+ * A file's history, newest first, through its moves between status folders: every commit that
+ * touched a file of that name. Exact, unlike git's rename guessing (--follow), which can take two
+ * near-identical item files for one. Empty outside git or before the first commit.
+ */
 export function history(file: string): LogEntry[] {
   const root = repoRoot(dirname(file));
-  if (!root) return [];
-  return git(root, ['log', '--follow', '--date=short', '--format=%h%x09%ad%x09%an%x09%s', '--', ...forGit(root, [file])])
+  if (!root || !hasCommits(root)) return [];
+  return git(root, ['log', '--no-renames', '--date=short', '--format=%h%x09%ad%x09%an%x09%s', '--', nameGlob(file)])
     .split('\n').filter(Boolean).map(l => {
       const [hash = '', date = '', author = '', ...subject] = l.split('\t');
       return { hash, date, author, subject: subject.join('\t') };
     });
+}
+
+/** A pathspec for every file with this file's name, anywhere in the repository. */
+function nameGlob(file: string): string {
+  return `:(glob)**/${basename(file).replace(/[*?[\]\\]/g, '\\$&')}`;
 }
 
 /**
@@ -153,8 +162,7 @@ export function history(file: string): LogEntry[] {
 export function addedIn(file: string): { hash: string; time: number } | null {
   const root = repoRoot(dirname(file));
   if (!root || !hasCommits(root)) return null;
-  const glob = `:(glob)**/${basename(file).replace(/[*?[\]\\]/g, '\\$&')}`;
-  const lines = git(root, ['log', '--no-renames', '--diff-filter=A', '--format=%H %ct', '--', glob]).split('\n').filter(Boolean);
+  const lines = git(root, ['log', '--no-renames', '--diff-filter=A', '--format=%H %ct', '--', nameGlob(file)]).split('\n').filter(Boolean);
   const [hash, time] = (lines[lines.length - 1] ?? '').split(' ');
   return hash ? { hash, time: Number(time) } : null;
 }

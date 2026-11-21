@@ -4,8 +4,8 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, reposOf, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
-import type { Renumbered, Status } from '../core/index.js';
+import { addItem, BacklogError, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
@@ -277,7 +277,100 @@ Each filter takes one value or several joined by commas (--status todo,doing).
       return 0;
     },
   },
+  show: {
+    summary: 'show an item: where it sits, its file, children, progress and history',
+    help: `Usage: ob show <id> [--json]
+
+Prints the item's place in the plan (2-build › 2.3-cli › 2.3.4-ob-move), its file, its file's
+text, its children (with progress, for a capability, epic or feature) and the commits that
+touched it. An ID pruned with git rm is found in git history: its last version, marked deleted.
+
+  --json  the same, as JSON, for other tools
+`,
+    options: { json: { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [id, ...extra] = positionals;
+      if (id === undefined || extra.length) return usageError('ob show needs one id, such as: ob show 2.3.4', 'show', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const b = loadBacklog(findBacklog(cwd));
+      const s = showItem(b, id);
+      if (values['json'] === true) {
+        io.out(JSON.stringify(s, null, 2) + '\n');
+        return 0;
+      }
+      const shown = relative(cwd, join(b.dir, s.path));
+      const lines = [s.breadcrumb.join(' › ')];
+      lines.push(s.deleted ? `${shown} (deleted)` : `${shown}${s.status ? `  ${s.status}` : ''}`);
+      if (s.deleted) lines.push(`Deleted in ${s.deleted.hash} on ${s.deleted.date} by ${s.deleted.author}: ${s.deleted.subject}. Its last version:`);
+      if (s.progress) lines.push(`Progress: ${progressText(s.progress)}, ${s.progress.doing} doing, ${s.progress.todo} todo`);
+      if (s.sameId.length) lines.push(`Also id ${id}: ${s.sameId.join(', ')} (run ob validate --fix)`);
+      lines.push('', s.text.trimEnd());
+      if (s.children.length) {
+        const w = Math.max(...s.children.map(c => c.id.length));
+        lines.push('', 'Children:', ...s.children.map(c => `  ${c.id.padEnd(w)}  ${(c.status ?? c.type).padEnd(7)}  ${c.title}`));
+      }
+      if (s.history.length) lines.push('', 'History:', ...s.history.map(h => `  ${h.date}  ${h.hash}  ${h.author}  ${h.subject}`));
+      io.out(lines.join('\n') + '\n');
+      return 0;
+    },
+  },
+  tree: {
+    summary: 'the plan as a tree: capabilities, epics, features with progress, and their items',
+    help: `Usage: ob tree [--depth <n>] [--all] [--json]
+
+Prints capabilities, epics and features with their status and progress (done of total, worked
+out from their stories, bugs, spikes and tasks), and the items under them, in build order. Done
+items show for 30 days, as in ob list; the progress counts every item.
+
+  --depth <n>  show n levels (1: the top items only)
+  --all        done items of any age
+  --json       the same tree, as JSON
+`,
+    options: { depth: { type: 'string' }, all: { type: 'boolean' }, json: { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      if (positionals.length) return usageError(`tree takes no arguments (got "${positionals.join(' ')}")`, 'tree', io);
+      const depthArg = values['depth'];
+      const maxDepth = depthArg === undefined ? Infinity : Number(depthArg);
+      if (depthArg !== undefined && (!Number.isInteger(maxDepth) || maxDepth < 1)) return usageError(`--depth takes a whole number from 1 (got "${String(depthArg)}")`, 'tree', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const b = loadBacklog(findBacklog(cwd));
+      const now = io.now ?? new Date();
+      const recent = values['all'] === true ? null : recentlyDone(b, new Date(now.getTime() - 30 * 86_400_000));
+      let hidden = 0;
+      const visible = (n: Node) => {
+        const ok = n.item.status !== 'done' || !recent || recent.has(n.item.path);
+        if (!ok) hidden++;
+        return ok;
+      };
+      type Out = { id: string; type: string; title: string; status: Status | null; path: string; progress: Progress | null; children: Out[] };
+      const toOut = (n: Node, depth: number): Out => {
+        const story = isStoryLevel(n.item);
+        const p = story ? null : progressOf(n);
+        return {
+          id: n.item.id, type: n.item.type, title: n.item.title, status: story ? n.item.status ?? null : p?.status ?? null, path: n.item.path, progress: p,
+          children: depth + 1 < maxDepth ? n.children.filter(visible).map(c => toOut(c, depth + 1)) : [],
+        };
+      };
+      const roots = buildTree(b.items).roots.filter(visible).map(r => toOut(r, 0));
+      if (values['json'] === true) io.out(JSON.stringify(roots, null, 2) + '\n');
+      else {
+        const print = (o: Out, depth: number) => {
+          const head = `${'  '.repeat(depth)}${o.id}  ${(o.status ?? '-').padEnd(5)}`;
+          io.out(fit(`${head}  ${o.progress ? `${progressText(o.progress)}  ` : ''}${o.title}`, io.columns) + '\n');
+          o.children.forEach(c => print(c, depth + 1));
+        };
+        roots.forEach(r => print(r, 0));
+      }
+      if (hidden) io.err(`ob: ${hidden} done ${hidden === 1 ? 'item' : 'items'} finished over 30 days ago not shown; --all shows them\n`);
+      return 0;
+    },
+  },
 };
+
+/** "3/9 done (33%)". */
+function progressText(p: Progress): string {
+  return `${p.done}/${p.total} done (${p.percent}%)`;
+}
 
 /** A line cut to a terminal's width with "…" (whole characters); unchanged when piped. */
 function fit(line: string, columns: number | undefined): string {
@@ -322,8 +415,7 @@ Usage: ob <command> [options]
 
 Commands:
 ${Object.entries(COMMANDS).map(([name, c]) => `  ${name.padEnd(width)}  ${c.summary}\n`).join('')}
-Run "ob <command> --help" for its options. More commands (show, tree)
-arrive with the CLI stories (2.3).
+Run "ob <command> --help" for its options.
 
 A backlog is a folder of Markdown files in git: ${SPEC_URL}
 `;

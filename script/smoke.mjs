@@ -92,6 +92,12 @@ try {
   if (listed.join(', ') !== '0.1.1 todo, 1.1.1 doing, 1.1.9 todo') fail(`ob list printed ${JSON.stringify(listed)}`);
   else console.log('smoke: the installed ob list prints the items in build order');
 
+  // ob tree and ob show on it.
+  const tree = ob('tree').split('\n')[0];
+  const shown = ob('show', '1.1.1').split('\n').slice(0, 2).join(' / ');
+  if (!tree.startsWith('0  todo   0/1 done (0%)') || shown !== '1-launch › 1.1-sign-up › 1.1.1-form / ../backlog/stories/doing/1.1.1-form.md  doing') fail(`ob tree "${tree}"; ob show "${shown}"`);
+  else console.log('smoke: the installed ob tree and ob show print the plan and an item');
+
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
   }

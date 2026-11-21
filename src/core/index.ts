@@ -26,6 +26,8 @@ export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';
 export { listItems, recentlyDone, reposOf } from './list.js';
 export type { ListFilters, Listed, ListOptions } from './list.js';
+export { showItem } from './show.js';
+export type { Shown } from './show.js';
 export { findBacklog, loadBacklog, readBacklog, statusOf } from './read.js';
 export { BacklogError } from './types.js';
 export { RULE, RULES } from './rules.js';
