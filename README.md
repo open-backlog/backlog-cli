@@ -4,9 +4,11 @@ The `ob` command and the core library it is built on, published to npm as **`ope
 [Open Backlog](https://openbacklog.org) keeps a backlog as Markdown files in git; the spec is
 at [openbacklog.org/spec](https://openbacklog.org/spec).
 
-**Status: scaffold (2.2.1).** `ob --version` and `ob --help` work. The core library grows
-through feature 2.2 (reading, writing, hierarchy, validation, git), and the commands through 2.3
-(`ob init`, `new`, `validate`, `move`, `list`, `show`). Not on npm yet (`private` until 2.3.7).
+**Status: core in progress (2.2).** The core reads a backlog: `readBacklog()` finds `backlog/`
+by walking up from the working directory and loads the config, every item with its status,
+sprints and people (2.2.2). Writing, hierarchy, validation and git follow through 2.2, and the
+commands through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today `ob` has
+`--version` and `--help`. Not on npm yet (`private` until 2.3.7).
 
 ## Layout
 

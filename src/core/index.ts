@@ -3,10 +3,11 @@
  * assigns IDs; the ob command (src/cli/) and the board (open-backlog-board) are both built on
  * it, so they can't disagree about the rules. It never imports the CLI.
  *
- *   import { SPEC_VERSION } from 'open-backlog';
+ *   import { readBacklog } from 'open-backlog';
+ *   const backlog = readBacklog();          // from the working directory, walking up
  *
- * Reading (2.2.2), writing (2.2.3), hierarchy and progress (2.2.4), validation (2.2.5), and git
- * and the next ID (2.2.6) are added here, story by story.
+ * Writing (2.2.3), hierarchy and progress (2.2.4), validation (2.2.5), and git and the next ID
+ * (2.2.6) are added here, story by story.
  */
 
 /** The version of the Open Backlog specification this library implements. */
@@ -14,3 +15,8 @@ export const SPEC_VERSION = '0.1';
 
 /** Where that specification is published. */
 export const SPEC_URL = 'https://openbacklog.org/spec';
+
+export { compareIds, parseFileName } from './ids.js';
+export { findBacklog, loadBacklog, readBacklog, statusOf } from './read.js';
+export { BacklogError } from './types.js';
+export type { Backlog, Config, FileError, Item, ItemFolder, ItemType, Person, Sprint, Status } from './types.js';

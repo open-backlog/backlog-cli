@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import { SPEC_URL, SPEC_VERSION } from '../core/index.js';
+import { BacklogError, SPEC_URL, SPEC_VERSION } from '../core/index.js';
 
 /** Where ob writes: stdout and stderr, or a test's buffers. */
 export interface Output {
@@ -55,4 +55,17 @@ export function run(args: string[], io: Output = STD): number {
   }
   io.err(`ob: unknown command "${command}"\nRun "ob --help" for usage.\n`);
   return 2;
+}
+
+/**
+ * What ob prints for an error that escapes a command, and its exit code: a backlog that can't be
+ * read (no config.yml, a file that isn't YAML) is one line naming the file, never a stack trace.
+ * Anything else is a bug in ob, so it keeps its stack.
+ */
+export function report(e: unknown, io: Output = STD): number {
+  if (e instanceof BacklogError) {
+    io.err(`ob: ${e.message}\n`);
+    return 1;
+  }
+  throw e;
 }

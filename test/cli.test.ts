@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { packageVersion, run } from '../src/cli/run.js';
-import { SPEC_VERSION } from '../src/core/index.js';
+import { packageVersion, report, run } from '../src/cli/run.js';
+import { BacklogError, SPEC_VERSION } from '../src/core/index.js';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string; bin: Record<string, string> };
 
@@ -34,6 +34,13 @@ describe('ob', () => {
       expect(r.out).toBe('');
       expect(r.err).toContain('ob --help');
     }
+  });
+
+  it('reports a backlog it cannot read in one line, exit 1, and lets a real bug keep its stack', () => {
+    let err = '';
+    expect(report(new BacklogError('/x/backlog/config.yml: not found; a backlog needs a config.yml'), { out: () => {}, err: t => { err += t; } })).toBe(1);
+    expect(err).toBe('ob: /x/backlog/config.yml: not found; a backlog needs a config.yml\n');
+    expect(() => report(new TypeError('bug'), { out: () => {}, err: () => {} })).toThrow(TypeError);
   });
 
   it('is installed as the ob command', () => {
