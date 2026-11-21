@@ -4,7 +4,7 @@ The `ob` command and the core library it is built on, published to npm as **`ope
 [Open Backlog](https://openbacklog.org) keeps a backlog as Markdown files in git; the spec is
 at [openbacklog.org/spec](https://openbacklog.org/spec).
 
-**Status: core in progress (2.2).** The core reads a backlog: `readBacklog()` finds `backlog/`
+**Status: core library done (2.2).** The core reads a backlog: `readBacklog()` finds `backlog/`
 by walking up from the working directory and loads the config, every item with its status,
 sprints and people (2.2.2). It writes without losing anything: `setFields()` and `updateItem()`
 change only the characters of a value, so an unchanged file stays byte for byte the same and an
@@ -12,8 +12,10 @@ edit is a one-line diff, and `createItem()` writes new files in the recommended 
 `buildTree()` links parents and children, `progressOf()` gives done of total (and by estimate)
 for features, epics and capabilities, and `buildOrder()` orders by number at every level (2.2.4).
 `validateDir()` checks every rule, each problem with a code, the file and how to fix it (2.2.5).
-Git and the next ID follow (2.2.6), and the
-commands through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today `ob` has
+Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
+`ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
+history; outside a git repository everything but committing still works. The commands
+arrive through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today `ob` has
 `--version` and `--help`. Not on npm yet (`private` until 2.3.7).
 
 ## Layout

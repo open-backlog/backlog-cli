@@ -7,7 +7,7 @@
  *   const backlog = readBacklog();          // from the working directory, walking up
  *   updateItem(backlog.dir, item, { assignee: 'ana' });   // one value changes, nothing else
  *
- * Git and the next ID (2.2.6) are added next.
+ * Git (the user's own, D2) and the next ID ([id-numbers]) are in git.ts (2.2.6).
  */
 
 /** The version of the Open Backlog specification this library implements. */
@@ -16,6 +16,8 @@ export const SPEC_VERSION = '0.1';
 /** Where that specification is published. */
 export const SPEC_URL = 'https://openbacklog.org/spec';
 
+export { changes, commit, git, history, isClean, message, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';
+export type { LogEntry } from './git.js';
 export { buildOrder, buildTree, columnOrder, isStoryLevel, progressOf, STORY_LEVEL_TYPES, walk } from './hierarchy.js';
 export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';
