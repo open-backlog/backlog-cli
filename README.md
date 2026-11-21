@@ -4,7 +4,7 @@ The `ob` command and the core library it is built on, published to npm as **`ope
 [Open Backlog](https://openbacklog.org) keeps a backlog as Markdown files in git; the spec is
 at [openbacklog.org/spec](https://openbacklog.org/spec).
 
-**Status: core library done (2.2).** The core reads a backlog: `readBacklog()` finds `backlog/`
+**Status: core library done (2.2); commands arriving (2.3).** The core reads a backlog: `readBacklog()` finds `backlog/`
 by walking up from the working directory and loads the config, every item with its status,
 sprints and people (2.2.2). It writes without losing anything: `setFields()` and `updateItem()`
 change only the characters of a value, so an unchanged file stays byte for byte the same and an
@@ -15,8 +15,22 @@ for features, epics and capabilities, and `buildOrder()` orders by number at eve
 Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
 `ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
 history; outside a git repository everything but committing still works. The commands
-arrive through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today `ob` has
-`--version` and `--help`. Not on npm yet (`private` until 2.3.7).
+arrive through 2.3; today `ob` has `init` (2.3.1), with `new`, `validate`, `move`, `list` and
+`show` to come. Not on npm yet (`private` until 2.3.7).
+
+## Commands
+
+```sh
+ob init --name my-app      # backlog/ at the top of this repository: config.yml and the folders
+ob init --readme           # the same, plus backlog/README.md explaining the folders
+ob <command> --help        # a command's options
+```
+
+`ob init` writes a two-line `config.yml` (`spec: 0.1`, `name: my-app`) and `epics/`,
+`features/` and `stories/todo|doing|done/`, each with a `.gitkeep` so git keeps them. The name
+defaults to the repository's folder name. It never overwrites a file: if `backlog/config.yml`
+is there, it changes nothing and says so. It doesn't commit; it prints the `git add` and
+`git commit` to run.
 
 ## Layout
 
@@ -27,7 +41,7 @@ arrive through 2.3 (`ob init`, `new`, `validate`, `move`, `list`, `show`); today
 | `test/` | Vitest tests |
 | `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, imports `open-backlog` |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version` and `ob init`, imports `open-backlog` |
 
 ## Validation codes
 

@@ -10,14 +10,12 @@
  * Git (the user's own, D2) and the next ID ([id-numbers]) are in git.ts (2.2.6).
  */
 
-/** The version of the Open Backlog specification this library implements. */
-export const SPEC_VERSION = '0.1';
-
-/** Where that specification is published. */
-export const SPEC_URL = 'https://openbacklog.org/spec';
+export { SPEC_URL, SPEC_VERSION } from './spec.js';
 
 export { changes, commit, git, history, isClean, message, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';
 export type { LogEntry } from './git.js';
+export { initBacklog, initDir, INIT_FOLDERS, INIT_README, NAME_PATTERN } from './init.js';
+export type { InitOptions, InitResult } from './init.js';
 export { buildOrder, buildTree, columnOrder, isStoryLevel, progressOf, STORY_LEVEL_TYPES, walk } from './hierarchy.js';
 export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';

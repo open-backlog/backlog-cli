@@ -24,6 +24,7 @@ describe('ob', () => {
       expect(r.code).toBe(0);
       expect(r.out).toContain('Usage: ob');
       expect(r.out).toContain(`spec ${SPEC_VERSION}`);
+      expect(r.out).toMatch(/^ {2}init {2}create backlog\//m);
     }
   });
 

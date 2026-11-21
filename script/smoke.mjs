@@ -3,7 +3,7 @@
 // `ob --version`, imports 'open-backlog' by name to check the library entry loads without the
 // CLI, and reads a fixture backlog through it.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -41,6 +41,20 @@ try {
      console.log([...new Set(validateDir(${JSON.stringify(broken)}).problems.map(p => p.code))].join(' '))`], { cwd: installed, encoding: 'utf8' }).trim();
   if (codes !== 'OB001') fail(`validateDir on invalid/parent gave "${codes}", expected "OB001"`);
   else console.log('smoke: the installed package validates with its schema (invalid/parent → OB001)');
+
+  // The installed ob init makes a backlog that validates, at the top of a code repository, and a
+  // second run changes nothing.
+  const code = join(tmp, 'code');
+  mkdirSync(join(code, 'src'), { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: code });
+  const ob = (...args) => execFileSync(join(tmp, 'bin', 'ob'), args, { cwd: join(code, 'src'), encoding: 'utf8' });
+  ob('init', '--name', 'smoke');
+  const again = ob('init');
+  const initCodes = execFileSync(process.execPath, ['--input-type=module', '-e',
+    `const { validateDir } = await import(${JSON.stringify(pkg.name)});
+     console.log(validateDir(${JSON.stringify(join(code, 'backlog'))}).problems.length)`], { cwd: installed, encoding: 'utf8' }).trim();
+  if (initCodes !== '0' || !again.includes('nothing changed')) fail(`ob init gave ${initCodes} problems; second run said "${again.trim()}"`);
+  else console.log('smoke: the installed ob init makes a valid backlog at the repository top, and a second run changes nothing');
 
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
