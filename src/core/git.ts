@@ -156,7 +156,8 @@ export function usedIds(b: Backlog): Set<string> {
     if (i.file) ids.add(i.file.id);
   }
   const root = repoRoot(b.dir);
-  if (root) {
+  // A repository with no commits yet (just after git init) has no history to count.
+  if (root && hasCommits(root)) {
     // --no-renames shows a move as a delete and an add, so the old name counts too.
     const deleted = git(root, ['log', '--no-renames', '--diff-filter=D', '--name-only', '--format=', '--', ...forGit(root, [b.dir])]);
     for (const path of deleted.split('\n').filter(Boolean)) {
@@ -165,6 +166,16 @@ export function usedIds(b: Backlog): Set<string> {
     }
   }
   return ids;
+}
+
+/** True once the repository has a first commit (git log fails before that). */
+function hasCommits(root: string): boolean {
+  try {
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -195,8 +206,12 @@ export function statusPath(b: Backlog, item: Item, status: Status, day: Date = n
   const name = item.path.slice(item.path.lastIndexOf('/') + 1);
   if (status !== 'done') return `stories/${status}/${name}`;
   if (b.config['done-folders'] !== 'month') return `stories/done/${name}`;
-  const month = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`;
-  return `stories/done/${month}/${name}`;
+  return `stories/done/${monthOf(day)}/${name}`;
+}
+
+/** "2026-11" for a day, in local time: done/ subfolders and epic 0's features. */
+export function monthOf(day: Date): string {
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**

@@ -50,11 +50,18 @@ try {
   const ob = (...args) => execFileSync(join(tmp, 'bin', 'ob'), args, { cwd: join(code, 'src'), encoding: 'utf8' });
   ob('init', '--name', 'smoke');
   const again = ob('init');
+  // ob new on it (no commit: CI has no git identity), including a stray bug into epic 0.
+  ob('new', 'epic', 'Launch', '--no-commit');
+  ob('new', 'feature', 'Sign up', '--parent', '1', '--no-commit');
+  const story = ob('new', 'story', 'Form', '--parent', '1.1', '--no-commit');
+  const bug = ob('new', 'bug', 'Crash', '--no-commit');
+  if (!story.includes('Created 1.1.1 ../backlog/stories/todo/1.1.1-form.md') || !/Created 0\.1\.1 /.test(bug)) fail(`ob new printed "${story.trim()}" and "${bug.trim()}"`);
+  else console.log('smoke: the installed ob new adds an epic, feature, story and a stray bug (epic 0)');
   const initCodes = execFileSync(process.execPath, ['--input-type=module', '-e',
     `const { validateDir } = await import(${JSON.stringify(pkg.name)});
      console.log(validateDir(${JSON.stringify(join(code, 'backlog'))}).problems.length)`], { cwd: installed, encoding: 'utf8' }).trim();
   if (initCodes !== '0' || !again.includes('nothing changed')) fail(`ob init gave ${initCodes} problems; second run said "${again.trim()}"`);
-  else console.log('smoke: the installed ob init makes a valid backlog at the repository top, and a second run changes nothing');
+  else console.log('smoke: the installed ob init makes a backlog at the repository top, a second run changes nothing, and with the new items it validates');
 
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);

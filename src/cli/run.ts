@@ -1,15 +1,18 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { BacklogError, initBacklog, initDir, repoRoot, SPEC_URL, SPEC_VERSION } from '../core/index.js';
+import { addItem, BacklogError, commit, findBacklog, initBacklog, initDir, ITEM_TYPES, loadBacklog, message, repoRoot, SPEC_URL, SPEC_VERSION } from '../core/index.js';
 
-/** Where ob writes (stdout and stderr, or a test's buffers), and the folder it runs in. */
+/** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
   out: (text: string) => void;
   err: (text: string) => void;
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  now?: Date;
 }
 
 const STD: Output = { out: t => process.stdout.write(t), err: t => process.stderr.write(t) };
@@ -66,6 +69,63 @@ If backlog/config.yml is already there, nothing changes.
       return 0;
     },
   },
+  new: {
+    summary: 'add an item with the next free ID, from the template',
+    help: `Usage: ob new <type> <title> [--parent <id>] [--slug <slug>] [--edit] [--no-commit]
+
+Adds an item with the next free number under its parent, in a file named <id>-<slug>.md
+(stories, bugs, spikes and tasks in stories/todo/), and commits it: "ob: add 2.3.5 Title".
+
+  ob new epic "Checkout"
+  ob new feature "Pay by card" --parent 1
+  ob new story "Card form" --parent 1.2      (or bug, spike, task)
+  ob new bug "Login fails on Safari"         a bug or task with no parent goes into this
+                                             month's feature in epic 0 (0.1-2026-11),
+                                             made if needed
+  ob new capability "Identity"
+
+  --parent <id>  the item it is filed under: an epic for a feature, a feature for a story,
+                 bug, spike or task; a capability for an epic (optional)
+  --slug <slug>  the file name's words (default: from the title)
+  --edit         open the new file in $VISUAL or $EDITOR before committing
+  --no-commit    write the file, leave committing to you
+`,
+    options: { parent: { type: 'string', short: 'p' }, slug: { type: 'string' }, edit: { type: 'boolean', short: 'e' }, 'no-commit': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [type, ...words] = positionals;
+      if (type === undefined || !words.length) return usageError('ob new needs a type and a title, such as: ob new story "Card form" --parent 1.2', 'new', io);
+      if (!ITEM_TYPES.includes(type as never)) return usageError(`"${type}" is not a type: use ${ITEM_TYPES.join(', ')}`, 'new', io);
+      const env = io.env ?? process.env;
+      const editor = env['VISUAL'] || env['EDITOR'];
+      const edit = values['edit'] === true;
+      if (edit && !editor) throw new BacklogError('--edit needs an editor: set $EDITOR (or $VISUAL), such as EDITOR=nano');
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const b = loadBacklog(findBacklog(cwd));
+      const title = words.join(' ');
+      const noCommit = values['no-commit'] === true;
+      const added = addItem(b, {
+        type, title,
+        ...(typeof values['parent'] === 'string' ? { parent: values['parent'] } : {}),
+        ...(typeof values['slug'] === 'string' ? { slug: values['slug'] } : {}),
+        commit: !noCommit && !edit,
+        ...(io.now ? { day: io.now } : {}),
+      });
+      const shown = (p: string) => relative(cwd, join(b.dir, p));
+      for (const c of added.created) io.out(`Created ${c.id} ${shown(c.path)}\n`);
+      let committed = added.committed;
+      if (edit && editor) {
+        // As git runs an editor: through the shell, so "code --wait" works, with the file as $1.
+        const r = spawnSync('sh', ['-c', `${editor} "$1"`, editor, join(b.dir, added.path)], { stdio: 'inherit', env });
+        if (r.status !== 0) {
+          throw new BacklogError(`the editor (${editor}) exited with ${r.status ?? r.signal ?? r.error?.message}; ${shown(added.path)} is written but not committed`);
+        }
+        if (!noCommit) committed = commit(added.created.map(c => join(b.dir, c.path)), message.add(added.id, title.trim()));
+      }
+      if (committed) io.out(`Committed: ${message.add(added.id, title.trim())}\n`);
+      else if (noCommit) io.out('Not committed (--no-commit).\n');
+      return 0;
+    },
+  },
 };
 
 export function usage(): string {
@@ -77,7 +137,7 @@ Usage: ob <command> [options]
 
 Commands:
 ${Object.entries(COMMANDS).map(([name, c]) => `  ${name.padEnd(width)}  ${c.summary}\n`).join('')}
-Run "ob <command> --help" for its options. More commands (new, validate, move, list, show)
+Run "ob <command> --help" for its options. More commands (validate, move, list, show)
 arrive with the CLI stories (2.3).
 
 A backlog is a folder of Markdown files in git: ${SPEC_URL}

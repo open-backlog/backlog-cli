@@ -15,14 +15,18 @@ for features, epics and capabilities, and `buildOrder()` orders by number at eve
 Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
 `ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
 history; outside a git repository everything but committing still works. The commands
-arrive through 2.3; today `ob` has `init` (2.3.1), with `new`, `validate`, `move`, `list` and
-`show` to come. Not on npm yet (`private` until 2.3.7).
+arrive through 2.3; today `ob` has `init` (2.3.1) and `new` (2.3.2), with `validate`, `move`, `list`
+and `show` to come. Not on npm yet (`private` until 2.3.7).
 
 ## Commands
 
 ```sh
 ob init --name my-app      # backlog/ at the top of this repository: config.yml and the folders
 ob init --readme           # the same, plus backlog/README.md explaining the folders
+ob new epic "Checkout"                      # the next epic: epics/1-checkout.md
+ob new feature "Pay by card" --parent 1     # features/1.1-pay-by-card.md
+ob new story "Card form" --parent 1.1       # stories/todo/1.1.1-card-form.md (or bug, spike, task)
+ob new bug "Login fails"                    # no parent: this month's feature in epic 0 (0.1-2026-11)
 ob <command> --help        # a command's options
 ```
 
@@ -31,6 +35,14 @@ ob <command> --help        # a command's options
 defaults to the repository's folder name. It never overwrites a file: if `backlog/config.yml`
 is there, it changes nothing and says so. It doesn't commit; it prints the `git add` and
 `git commit` to run.
+
+`ob new` takes the next number ever used under the parent (counting items removed in git
+history), names the file from the title (`--slug` to choose), starts a story, bug, spike or
+task from the template, and commits just that file: `ob: add 1.1.1 Card form`. The parent is
+checked first (it must exist and be the right type), so a mistake writes nothing. A bug or task
+with no `--parent` goes into this month's feature in epic 0, creating `0-unplanned.md` and
+`0.N-YYYY-MM.md` if needed. `--edit` opens the file in `$VISUAL` or `$EDITOR` and commits what
+you save; `--no-commit` leaves committing to you.
 
 ## Layout
 
@@ -41,7 +53,7 @@ is there, it changes nothing and says so. It doesn't commit; it prints the `git 
 | `test/` | Vitest tests |
 | `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version` and `ob init`, imports `open-backlog` |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init` and `ob new`, imports `open-backlog` |
 
 ## Validation codes
 
