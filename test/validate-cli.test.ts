@@ -131,7 +131,10 @@ describe('ob validate --fix', () => {
     expect(renamed).toBe(old?.replace('id: 1.1.1', 'id: 1.1.2'));
     expect(git(root, ['show', '--name-status', '--format=%s', 'HEAD']).split('\n').filter(Boolean)).toEqual([
       'ob: renumber 1.1.1 to 1.1.2', expect.stringMatching(/^R\d+\tbacklog\/stories\/todo\/1\.1\.1-gift-card\.md\tbacklog\/stories\/todo\/1\.1\.2-gift-card\.md$/)]);
-    expect(git(root, ['log', '--follow', '--format=%s', '--', 'backlog/stories/todo/1.1.2-gift-card.md']).split('\n')).toEqual(['ob: renumber 1.1.1 to 1.1.2', 'side']);
+    // History follows the rename back to the branch that added it. (--follow guesses renames by
+    // similarity, and some git versions also step into the other, similar story; only the first
+    // two entries are ob's doing.)
+    expect(git(root, ['log', '--follow', '--format=%s', '--', 'backlog/stories/todo/1.1.2-gift-card.md']).split('\n').slice(0, 2)).toEqual(['ob: renumber 1.1.1 to 1.1.2', 'side']);
     expect(git(root, ['status', '--porcelain'])).toBe('');
     // Run again: nothing to fix, nothing changes.
     expect(ob(root, '--fix')).toEqual({ code: 0, err: '', out: 'backlog/ is valid, 4 items\n' });
