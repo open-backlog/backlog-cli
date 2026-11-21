@@ -7,8 +7,7 @@
  *   const backlog = readBacklog();          // from the working directory, walking up
  *   updateItem(backlog.dir, item, { assignee: 'ana' });   // one value changes, nothing else
  *
- * Validation (2.2.5), and git and the next ID
- * (2.2.6) are added here, story by story.
+ * Git and the next ID (2.2.6) are added next.
  */
 
 /** The version of the Open Backlog specification this library implements. */
@@ -22,6 +21,10 @@ export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';
 export { findBacklog, loadBacklog, readBacklog, statusOf } from './read.js';
 export { BacklogError } from './types.js';
+export { RULE, RULES } from './rules.js';
+export type { Rule, Severity } from './rules.js';
+export { formatProblem, validate, validateDir } from './validate.js';
+export type { Problem } from './validate.js';
 export { createItem, folderFor, formatValue, newItemPath, newItemText, setFields, slugify, updateItem } from './write.js';
 export type { FieldValue, NewItem } from './write.js';
 export type { Backlog, Config, FileError, Item, ItemFolder, ItemType, Person, Sprint, Status } from './types.js';

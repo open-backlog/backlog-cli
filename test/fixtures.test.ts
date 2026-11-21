@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// test/fixtures/ is backlog-spec's examples/, copied by script/sync-fixtures.sh.
+// test/fixtures/ is backlog-spec's examples/, copied by script/sync-spec.sh.
 const fixtures = new URL('fixtures/', import.meta.url);
 const dirs = (rel: string) => readdirSync(new URL(rel, fixtures), { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
 

@@ -34,6 +34,14 @@ try {
   if (read !== expected) fail(`readBacklog gave "${read}", expected "${expected}"`);
   else console.log(`smoke: the installed package reads a backlog from a subfolder (${read})`);
 
+  // It validates with the JSON Schema it ships (schema/ in the package).
+  const broken = join(root, 'test', 'fixtures', 'invalid', 'parent', 'backlog');
+  const codes = execFileSync(process.execPath, ['--input-type=module', '-e',
+    `const { validateDir } = await import(${JSON.stringify(pkg.name)});
+     console.log([...new Set(validateDir(${JSON.stringify(broken)}).problems.map(p => p.code))].join(' '))`], { cwd: installed, encoding: 'utf8' }).trim();
+  if (codes !== 'OB001') fail(`validateDir on invalid/parent gave "${codes}", expected "OB001"`);
+  else console.log('smoke: the installed package validates with its schema (invalid/parent → OB001)');
+
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
   }
