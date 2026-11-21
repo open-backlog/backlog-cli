@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, loadBacklog, message, moveItem, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import { addItem, BacklogError, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, reposOf, repoRoot, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
 import type { Renumbered, Status } from '../core/index.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
@@ -14,9 +14,15 @@ export interface Output {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   now?: Date;
+  /** The terminal's width when writing to one; undefined when piped, so nothing is cut. */
+  columns?: number;
 }
 
-const STD: Output = { out: t => process.stdout.write(t), err: t => process.stderr.write(t) };
+const STD: Output = {
+  out: t => process.stdout.write(t),
+  err: t => process.stderr.write(t),
+  ...(process.stdout.isTTY ? { columns: process.stdout.columns || 80 } : {}),
+};
 
 /** The package's own version, from its package.json (two folders up from src/cli/ or dist/cli/). */
 export function packageVersion(): string {
@@ -213,7 +219,72 @@ their items.
       return moveCommand(id, 'done', values, io, 'done');
     },
   },
+  list: {
+    summary: 'list stories, bugs, spikes and tasks in build order, filtered',
+    help: `Usage: ob list [filters] [--all] [--json]
+
+Lists stories, bugs, spikes and tasks in build order (by number): ID, status, repo and title.
+Done items show for 30 days after they were moved to done (from git history); --all shows
+every one. Plain text, no colour; titles are cut to fit a terminal, never when piped.
+
+  --status <s>     todo, doing or done
+  --type <t>       story, bug, spike or task
+  --parent <id>    under this epic, feature or capability
+  --repo <name>    with this repo (T3)
+  --assignee <h>   assigned to this handle
+  --sprint <name>  in this sprint
+  --all            done items of any age
+  --json           the same items, as JSON, for other tools
+
+Each filter takes one value or several joined by commas (--status todo,doing).
+`,
+    options: {
+      status: { type: 'string', multiple: true }, type: { type: 'string', multiple: true }, parent: { type: 'string', multiple: true },
+      repo: { type: 'string', multiple: true }, assignee: { type: 'string', multiple: true }, sprint: { type: 'string', multiple: true },
+      all: { type: 'boolean' }, json: { type: 'boolean' },
+    },
+    run: (values, positionals, io) => {
+      if (positionals.length) return usageError(`list takes no arguments (got "${positionals.join(' ')}"); filter with --status, --type, --parent …`, 'list', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const b = loadBacklog(findBacklog(cwd));
+      const list = (k: string) => {
+        const v = values[k] as unknown;
+        return Array.isArray(v) ? (v as string[]).flatMap(x => x.split(',')).map(x => x.trim()).filter(Boolean) : undefined;
+      };
+      const filters = Object.fromEntries(['status', 'type', 'parent', 'repo', 'assignee', 'sprint'].map(k => [k, list(k)]).filter(([, v]) => v !== undefined));
+      let listed;
+      try {
+        listed = listItems(b, filters, { all: values['all'] === true, ...(io.now ? { now: io.now } : {}) });
+      } catch (e) {
+        if (e instanceof BacklogError && /is not a (status|type)/.test(e.message)) return usageError(e.message, 'list', io);
+        throw e;
+      }
+      if (values['json'] === true) {
+        io.out(JSON.stringify(listed.items.map(i => ({
+          id: i.id, type: i.type, status: i.status ?? null, title: i.title, parent: i.parent ?? null, repo: reposOf(i),
+          assignee: i.fields['assignee'] ?? null, sprint: i.fields['sprint'] ?? null, path: i.path,
+        })), null, 2) + '\n');
+        return 0;
+      }
+      const rows = listed.items.map(i => ({ id: i.id, status: i.status ?? '', repo: reposOf(i).join(','), title: i.title }));
+      const w = (f: (r: typeof rows[number]) => string) => Math.max(0, ...rows.map(r => f(r).length));
+      const idW = w(r => r.id), stW = w(r => r.status), repoW = w(r => r.repo);
+      for (const r of rows) {
+        const line = [r.id.padEnd(idW), r.status.padEnd(stW), ...(repoW ? [r.repo.padEnd(repoW)] : []), r.title].join('  ');
+        io.out(fit(line, io.columns) + '\n');
+      }
+      if (listed.hiddenDone) io.err(`ob: ${listed.hiddenDone} done ${listed.hiddenDone === 1 ? 'item' : 'items'} finished over 30 days ago not shown; --all shows them\n`);
+      return 0;
+    },
+  },
 };
+
+/** A line cut to a terminal's width with "…" (whole characters); unchanged when piped. */
+function fit(line: string, columns: number | undefined): string {
+  const chars = [...line];
+  if (columns === undefined || chars.length <= columns) return line;
+  return chars.slice(0, Math.max(1, columns - 1)).join('').trimEnd() + '…';
+}
 
 const STATUSES: readonly Status[] = ['todo', 'doing', 'done'];
 
@@ -251,7 +322,7 @@ Usage: ob <command> [options]
 
 Commands:
 ${Object.entries(COMMANDS).map(([name, c]) => `  ${name.padEnd(width)}  ${c.summary}\n`).join('')}
-Run "ob <command> --help" for its options. More commands (list, show)
+Run "ob <command> --help" for its options. More commands (show, tree)
 arrive with the CLI stories (2.3).
 
 A backlog is a folder of Markdown files in git: ${SPEC_URL}

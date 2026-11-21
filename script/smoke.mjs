@@ -87,6 +87,11 @@ try {
   if (!started.startsWith('Moved 1.1.1 to doing') || !staged.includes('R  backlog/stories/todo/1.1.1-form.md -> backlog/stories/doing/1.1.1-form.md')) fail(`ob start printed "${started.trim()}"; git status: ${staged}`);
   else console.log('smoke: the installed ob start stages a git mv to doing');
 
+  // ob list, piped: plain rows in build order.
+  const listed = ob('list').split('\n').filter(Boolean).map(l => l.split(/\s+/).slice(0, 2).join(' '));
+  if (listed.join(', ') !== '0.1.1 todo, 1.1.1 doing, 1.1.9 todo') fail(`ob list printed ${JSON.stringify(listed)}`);
+  else console.log('smoke: the installed ob list prints the items in build order');
+
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
   }

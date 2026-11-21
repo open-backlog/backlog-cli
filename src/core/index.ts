@@ -24,6 +24,8 @@ export type { InitOptions, InitResult } from './init.js';
 export { buildOrder, buildTree, columnOrder, isStoryLevel, progressOf, STORY_LEVEL_TYPES, walk } from './hierarchy.js';
 export type { Node, Progress, Tree } from './hierarchy.js';
 export { compareIds, parseFileName } from './ids.js';
+export { listItems, recentlyDone, reposOf } from './list.js';
+export type { ListFilters, Listed, ListOptions } from './list.js';
 export { findBacklog, loadBacklog, readBacklog, statusOf } from './read.js';
 export { BacklogError } from './types.js';
 export { RULE, RULES } from './rules.js';
