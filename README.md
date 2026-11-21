@@ -1,0 +1,38 @@
+# backlog-cli
+
+The `ob` command and the core library it is built on, published to npm as **`open-backlog`**.
+[Open Backlog](https://openbacklog.org) keeps a backlog as Markdown files in git; the spec is
+at [openbacklog.org/spec](https://openbacklog.org/spec).
+
+**Status: scaffold (2.2.1).** `ob --version` and `ob --help` work. The core library grows
+through feature 2.2 (reading, writing, hierarchy, validation, git), and the commands through 2.3
+(`ob init`, `new`, `validate`, `move`, `list`, `show`). Not on npm yet (`private` until 2.3.7).
+
+## Layout
+
+| Path | |
+|---|---|
+| `src/core/` | the library: `import { … } from 'open-backlog'`. Never imports the CLI (lint enforces it), so the board can use it on its own (D1) |
+| `src/cli/` | the `ob` command, on top of the core. `main.ts` is the bin; `run.ts` does the work and is what tests call |
+| `test/` | Vitest tests |
+| `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-fixtures.sh`; don't edit them here |
+| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, imports `open-backlog` |
+
+## Develop
+
+Node 22 or later (the LTS lines 22, 24 and 26 are tested).
+
+```sh
+npm install
+npm run check        # lint, build, test, smoke: what CI runs on every push
+npm test             # just the tests
+npm run build        # dist/
+npm install -g .     # ob on your PATH, from this checkout (needs a build first)
+```
+
+When backlog-spec's examples change, run `script/sync-fixtures.sh` (backlog-spec must be beside
+this repo) and commit `test/fixtures/`.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The specification and whitepaper are CC BY 4.0, in backlog-spec.
