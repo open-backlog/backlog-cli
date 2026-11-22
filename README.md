@@ -1,115 +1,249 @@
-# backlog-cli
+# Open Backlog
 
-The `ob` command and the core library it is built on, published to npm as **`open-backlog`**.
-[Open Backlog](https://openbacklog.org) keeps a backlog as Markdown files in git; the spec is
-at [openbacklog.org/spec](https://openbacklog.org/spec).
+`ob` keeps your backlog as Markdown files in git, next to your code. Every epic, feature and
+story is a file. A story's folder (`todo/`, `doing/`, `done/`) is its status, and git history is
+its timeline. You need no server and no account, and any editor, script or AI agent can read it.
 
-**Status: core library done (2.2); commands arriving (2.3).** The core reads a backlog: `readBacklog()` finds `backlog/`
-by walking up from the working directory and loads the config, every item with its status,
-sprints and people (2.2.2). It writes without losing anything: `setFields()` and `updateItem()`
-change only the characters of a value, so an unchanged file stays byte for byte the same and an
-edit is a one-line diff, and `createItem()` writes new files in the recommended shape (2.2.3).
-`buildTree()` links parents and children, `progressOf()` gives done of total (and by estimate)
-for features, epics and capabilities, and `buildOrder()` orders by number at every level (2.2.4).
-`validateDir()` checks every rule, each problem with a code, the file and how to fix it (2.2.5).
-Git is the user's own (2.2.6): `moveItem()` does a `git mv` and commits only that move as
-`ob: move 2.3.4 to doing`; `nextId()` never reuses a number, counting items deleted in git
-history; outside a git repository everything but committing still works. The commands
-arrive through 2.3; today `ob` has `init` (2.3.1), `new` (2.3.2), `validate` (2.3.3), `move`,
-`start` and `done` (2.3.4), `list` (2.3.5) and `show` and `tree` (2.3.6). Not on npm yet (`private` until 2.3.7).
+This package, `open-backlog`, is the `ob` command and the library it is built on. It follows the
+[Open Backlog spec](https://openbacklog.org/spec) **version 0.1**.
+
+## Install
+
+You need Node.js 22 or later, and git.
+
+```sh
+npm i -g open-backlog
+ob --version
+```
+
+To run it once without installing: `npx -p open-backlog ob <command>`.
+
+## A five-minute start
+
+In a git repository, create the backlog and commit it:
+
+```sh
+$ ob init --name shop
+Created the shop backlog in backlog/:
+  config.yml
+  epics/.gitkeep
+  features/.gitkeep
+  stories/todo/.gitkeep
+  stories/doing/.gitkeep
+  stories/done/.gitkeep
+Next: git add backlog && git commit -m "ob: init shop backlog"
+$ git add backlog && git commit -m "ob: init shop backlog"
+```
+
+Add an epic, a feature under it and two stories. Each `ob new` takes the next free number and
+commits only that file:
+
+```sh
+$ ob new epic "Checkout"
+Created 1 backlog/epics/1-checkout.md
+Committed: ob: add 1 Checkout
+$ ob new feature "Pay by card" --parent 1
+$ ob new story "Card form" --parent 1.1
+$ ob new story "Save the card" --parent 1.1
+```
+
+A bug or task that fits no plan needs no parent. It goes into this month's feature in epic 0,
+"Unplanned work":
+
+```sh
+$ ob new bug "Total rounds wrong"
+Created 0 backlog/epics/0-unplanned.md
+Created 0.1 backlog/features/0.1-2026-11.md
+Created 0.1.1 backlog/stories/todo/0.1.1-total-rounds-wrong.md
+Committed: ob: add 0.1.1 Total rounds wrong
+```
+
+Start a story, finish it and look at the plan:
+
+```sh
+$ ob start 1.1.1
+Moved 1.1.1 to doing: backlog/stories/todo/1.1.1-card-form.md → backlog/stories/doing/1.1.1-card-form.md
+Committed: ob: move 1.1.1 to doing
+$ ob list
+0.1.1  todo   Total rounds wrong
+1.1.1  doing  Card form
+1.1.2  todo   Save the card
+$ ob done 1.1.1
+$ ob tree
+0  todo   0/1 done (0%)  Unplanned work
+  0.1  todo   0/1 done (0%)  Unplanned, 2026-11
+    0.1.1  todo   Total rounds wrong
+1  doing  1/2 done (50%)  Checkout
+  1.1  doing  1/2 done (50%)  Pay by card
+    1.1.1  done   Card form
+    1.1.2  todo   Save the card
+$ ob validate
+backlog/ is valid, 7 items
+```
+
+Open `backlog/stories/todo/1.1.2-save-the-card.md` in any editor to write the story. `ob show
+1.1.2` prints it with where it sits in the plan and its history. Push, and your team has the
+backlog with the code.
+
+## What a backlog looks like
+
+```
+backlog/
+  config.yml                        spec: 0.1, name: shop
+  epics/1-checkout.md
+  features/1.1-pay-by-card.md       feature 1 of epic 1
+  stories/
+    todo/1.1.2-save-the-card.md     stories, bugs, spikes and tasks
+    doing/
+    done/1.1.1-card-form.md
+```
+
+Each file starts with front matter: `id`, `type`, `title` and `parent`, plus optional
+fields such as `repo`, `assignee`, `sprint` and `estimate`. The rest is Markdown. The
+[spec](https://openbacklog.org/spec) gives every field and rule.
 
 ## Commands
 
+Every command takes `--help`. `ob --help` lists them all.
+
+### ob init
+
 ```sh
-ob init --name my-app      # backlog/ at the top of this repository: config.yml and the folders
-ob init --readme           # the same, plus backlog/README.md explaining the folders
-ob new epic "Checkout"                      # the next epic: epics/1-checkout.md
-ob new feature "Pay by card" --parent 1     # features/1.1-pay-by-card.md
-ob new story "Card form" --parent 1.1       # stories/todo/1.1.1-card-form.md (or bug, spike, task)
-ob new bug "Login fails"                    # no parent: this month's feature in epic 0 (0.1-2026-11)
-ob validate                                 # every problem, with how to fix it; exit 1 on errors
-ob validate --fix                           # renumber duplicate IDs after a merge, in one commit
-ob validate --json                          # the same, for other tools
-ob start 1.1.1                              # git mv to stories/doing/ and commit: ob: move 1.1.1 to doing
-ob done 1.1.1                               # to stories/done/ (done/YYYY-MM/ with done-folders: month)
-ob move 1.1.1 todo                          # any status: todo, doing or done
-ob list                                     # stories, bugs, spikes, tasks by number; done from the last 30 days
-ob list --status todo,doing --parent 1      # filter: --status --type --parent --repo --assignee --sprint
-ob list --all --json                        # every done item too; JSON for other tools
-ob show 2.3.4                               # where it sits (2-build › 2.3-cli › 2.3.4-ob-move), file, children, history
-ob tree                                     # epics and features with progress, items underneath (--depth, --all)
-ob <command> --help        # a command's options
+ob init [--name <name>] [--readme]
 ```
 
-`ob init` writes a two-line `config.yml` (`spec: 0.1`, `name: my-app`) and `epics/`,
-`features/` and `stories/todo|doing|done/`, each with a `.gitkeep` so git keeps them. The name
-defaults to the repository's folder name. It never overwrites a file: if `backlog/config.yml`
-is there, it changes nothing and says so. It doesn't commit; it prints the `git add` and
-`git commit` to run.
+This creates `backlog/` at the top of the git repository (or in the current folder, outside git).
+It writes a two-line `config.yml` (`spec: 0.1`, `name: …`) and the folders `epics/`, `features/`
+and `stories/todo|doing|done/`, each with a `.gitkeep`. It doesn't commit; it prints the
+command to run.
 
-`ob new` takes the next number ever used under the parent (counting items removed in git
-history), names the file from the title (`--slug` to choose), starts a story, bug, spike or
-task from the template, and commits just that file: `ob: add 1.1.1 Card form`. The parent is
-checked first (it must exist and be the right type), so a mistake writes nothing. A bug or task
-with no `--parent` goes into this month's feature in epic 0, creating `0-unplanned.md` and
-`0.N-YYYY-MM.md` if needed. `--edit` opens the file in `$VISUAL` or `$EDITOR` and commits what
-you save; `--no-commit` leaves committing to you.
+- `--name <name>`: the backlog's name, made of lowercase letters, digits and dashes. It
+  defaults to the repository's folder name.
+- `--readme`: also write `backlog/README.md`, which explains the folders.
 
-`ob move <id> <todo|doing|done>` (and `ob start`, `ob done`) is a `git mv` and a commit of just
-that rename, the same commit a hand-run `git mv` and `git commit` make, so `git log --follow`
-shows the item's history across moves. `--no-commit` leaves the `git mv` staged. Epics,
-features and capabilities don't move: their status comes from their items.
+It never overwrites a file. If `backlog/config.yml` exists, it changes nothing and says so.
 
-`ob list` prints ID, status, repo (when the backlog lists repos) and title, plain text with no
-colour; titles are cut to fit a terminal and never when piped. Done items show for 30 days after
-the commit that moved them to done (a note on stderr says how many older ones are left out);
-`--all` shows them all. Outside git there are no dates, so every done item shows.
+### ob new
 
-`ob show <id>` prints an item's place in the plan, its file, its children (with progress for a
-capability, epic or feature) and the commits that touched it, through its moves. An ID removed
-with `git rm` is found in git history and shown as its last version, marked deleted. `ob tree`
-prints the plan with each container's status and `done/total (percent)`, worked out by the core
-library, and the items under it; old done items are left out as in `ob list` (the counts include
-them). Both take `--json`.
+```sh
+ob new <type> <title> [--parent <id>] [--slug <slug>] [--edit] [--no-commit]
+```
 
-`ob validate` exits 1 when there are errors (warnings alone exit 0), so it works in CI and as a
-git hook. `--fix` repairs what a merge does when two branches each add the next number: of two
-items with the same ID, the one added later in git history gets the next free number and its
-file is renamed with `git mv`; children that came with it (added after it, on its side of the
-merge) get the new parent. Nothing else changes, and it's one commit
-(`ob: renumber 1.1.1 to 1.1.2`).
+This adds a `capability`, `epic`, `feature`, `story`, `bug`, `spike` or `task`. It takes the
+next number ever used under the parent, counting items removed in git history, so a number is
+never reused. It writes the file from the template (stories, bugs, spikes and tasks go in
+`stories/todo/`) and commits just that file: `ob: add 1.1.1 Card form`. The parent is checked
+first, so a mistake writes nothing.
 
-A pre-commit hook, `.git/hooks/pre-commit` (made executable with `chmod +x`), refuses a commit
-that breaks the backlog:
+- `--parent <id>`: the item it's filed under. A feature needs an epic, and a story, bug, spike
+  or task needs a feature. An epic may have a capability. A bug or task with no parent goes into
+  this month's feature in epic 0, which is created if needed.
+- `--slug <slug>`: the words in the file name (by default, taken from the title).
+- `--edit`: open the new file in `$VISUAL` or `$EDITOR`, then commit what you save.
+- `--no-commit`: write the file and leave committing to you.
+
+### ob move, ob start, ob done
+
+```sh
+ob move <id> <todo|doing|done> [--no-commit]
+ob start <id> [--no-commit]          # ob move <id> doing
+ob done <id> [--no-commit]           # ob move <id> done
+```
+
+This moves a story, bug, spike or task with `git mv` and commits only that move:
+`ob: move 1.1.1 to doing`. That's the same commit a hand-run `git mv` and `git commit` would
+make, so `git log --follow` shows the item's history across moves. With `done-folders: month` in
+`config.yml`, done items go into `stories/done/YYYY-MM/`. Epics, features and capabilities don't
+move: their status comes from their items.
+
+- `--no-commit`: stage the `git mv` and leave committing to you.
+
+### ob list
+
+```sh
+ob list [--status <s>] [--type <t>] [--parent <id>] [--repo <name>] [--assignee <h>] [--sprint <name>] [--all] [--json]
+```
+
+This lists stories, bugs, spikes and tasks in build order (1.1.2 before 1.1.10). Each row has
+the ID, status, repo (when the backlog lists repos) and title. Output is plain text with no
+colour, and titles are cut to fit a terminal but never when piped. Done items show for 30 days
+after the commit that moved them to done, and a note on stderr counts the older ones. Outside
+git there are no dates, so every done item shows.
+
+- `--status <s>`: `todo`, `doing` or `done`.
+- `--type <t>`: `story`, `bug`, `spike` or `task`.
+- `--parent <id>`: anything under this epic, feature or capability.
+- `--repo <name>`, `--assignee <h>`, `--sprint <name>`: items with that repo, assignee or sprint.
+- `--all`: done items of any age.
+- `--json`: the same items with their fields, for other tools.
+
+Each filter takes one value or several joined by commas (`--status todo,doing`), and filters
+combine.
+
+### ob show
+
+```sh
+ob show <id> [--json]
+```
+
+This prints an item's place in the plan (`1-checkout › 1.1-pay-by-card › 1.1.1-card-form`), its
+file's path and status, and the file itself. Then come its children, with a progress line for a
+capability, epic or feature ("1/2 done (50%), 0 doing, 1 todo"), and every commit that touched
+it. An ID removed with `git rm` is found in git history and shown as its last version, marked
+deleted, with the commit that removed it.
+
+- `--json`: the same, as JSON.
+
+### ob tree
+
+```sh
+ob tree [--depth <n>] [--all] [--json]
+```
+
+This prints the plan: capabilities, epics and features with their status and `done/total
+(percent)`, and the items under them, in build order. Done items older than 30 days are left
+out, as in `ob list`, but the counts include them.
+
+- `--depth <n>`: show `n` levels (1 shows the top items only).
+- `--all`: done items of any age.
+- `--json`: the same tree, nested, as JSON.
+
+### ob validate
+
+```sh
+ob validate [--fix] [--no-commit] [--json]
+```
+
+This checks every file against the spec and prints each problem as
+`<file>: <code> [<rule>] <what is wrong>. Fix: <how>.` It exits 1 when there are errors
+(warnings alone exit 0), so it works in CI and as a git hook.
+
+- `--fix`: renumber duplicate IDs. When two branches each add the next number, the item added
+  later in git history gets the next free number and its file is renamed with `git mv`. Children
+  that came with it get the new parent. It's one commit: `ob: renumber 1.1.1 to 1.1.2`.
+- `--no-commit`: with `--fix`, leave committing to you.
+- `--json`: `{ backlog, valid, errors, warnings, problems, renumbered }`, for other tools.
+
+## Checking the backlog in a hook and in CI
+
+To refuse a commit that breaks the backlog, add a pre-commit hook. Save this as
+`.git/hooks/pre-commit` and make it executable with `chmod +x`:
 
 ```sh
 #!/bin/sh
 exec ob validate
 ```
 
-In CI, such as a GitHub Actions step (once the package is on npm, 2.3.7):
+The hook checks the working tree, so a fix you haven't staged still counts. In CI, such as a
+GitHub Actions step:
 
 ```yaml
 - run: npx --yes -p open-backlog ob validate
 ```
 
-The hook checks the working tree, so a fix you haven't staged still counts.
-
-## Layout
-
-| Path | |
-|---|---|
-| `src/core/` | the library: `import { … } from 'open-backlog'`. Never imports the CLI (lint enforces it), so the board can use it on its own (D1) |
-| `src/cli/` | the `ob` command, on top of the core. `main.ts` is the bin; `run.ts` does the work and is what tests call |
-| `test/` | Vitest tests |
-| `test/fixtures/` | backlog-spec's example backlogs, copied by `script/sync-spec.sh`; don't edit them here |
-| `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` and shipped in the package; the validator checks single files with it |
-| `script/smoke.mjs` | after a build: packs the package, installs it globally into a temporary folder, runs `ob --version`, `ob init`, `ob new`, `ob validate` (also as a pre-commit hook) `ob start`, `ob list`, `ob tree` and `ob show`, imports `open-backlog` |
-
 ## Validation codes
 
-Each rule in the spec has a code that never changes meaning. `ob validate` prints
-`<file>: <code> [<rule>] <what is wrong>. Fix: <how>.`
+Each rule in the spec has a code that never changes meaning.
 
 | Code | Rule | | Code | Rule |
 |---|---|---|---|---|
@@ -123,23 +257,53 @@ Each rule in the spec has a code that never changes meaning. `ob validate` print
 | OB008 | fields | | OB017 | local-clones (a warning) |
 | OB009 | repo-listed | | | |
 
-Single-file rules use the spec's JSON Schema, so ob agrees with any tool that uses it.
+Single-file rules use the spec's JSON Schema, which ships in this package under `schema/0.1/`, so
+`ob` agrees with any other tool that uses it.
+
+## Git
+
+`ob` runs your own `git`, so your identity, keys, hooks and settings all apply, and it needs no
+token. Each command commits only the files it changed, never anything else you have staged.
+Outside a git repository, everything except committing still works.
+
+## The library
+
+The same core that `ob` uses can be imported for scripts and other tools:
+
+```js
+import { readBacklog, validateDir, buildTree, progressOf } from 'open-backlog';
+
+const backlog = readBacklog();              // finds backlog/ from the working directory up
+const { problems } = validateDir(backlog.dir);
+```
+
+It also covers writing items without reformatting them (`setFields`, `updateItem`,
+`createItem`), ordering (`buildOrder`), git (`moveItem`, `nextId`, `history`) and the commands'
+own functions (`initBacklog`, `addItem`, `listItems`, `showItem`, `fixDuplicates`). It ships
+TypeScript types.
 
 ## Develop
 
-Node 22 or later (the LTS lines 22, 24 and 26 are tested).
+To work on `ob` itself, from a clone of backlog-cli:
 
 ```sh
 npm install
-npm run check        # lint, build, test, smoke: what CI runs on every push
+npm run check        # lint, build, test and smoke test: what CI runs on every push
 npm test             # just the tests
-npm run build        # dist/
-npm install -g .     # ob on your PATH, from this checkout (needs a build first)
+npm install -g .     # ob on your PATH, from this checkout (after npm run build)
 ```
 
-When backlog-spec's examples or schema change, run `script/sync-spec.sh` (backlog-spec must be
-beside this repo) and commit `test/fixtures/` and `schema/`.
+| Path | |
+|---|---|
+| `src/core/` | the library. It never imports the CLI (lint enforces this), so other tools can use it on its own |
+| `src/cli/` | the `ob` command, on top of the core. `main.ts` is the bin, and `run.ts` does the work and is what tests call |
+| `test/` | Vitest tests. `test/fixtures/` holds backlog-spec's example backlogs, copied by `script/sync-spec.sh` |
+| `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` |
+| `script/smoke.mjs` | packs the package, checks its file list, installs it globally into a temporary folder and runs the commands |
+
+To release, set `version` in `package.json`, commit, and push a tag `v<version>`. The publish
+workflow runs the full check and publishes to npm.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The specification and whitepaper are CC BY 4.0, in backlog-spec.
+MIT. The specification is CC BY 4.0.

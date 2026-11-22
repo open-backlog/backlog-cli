@@ -421,6 +421,11 @@ A backlog is a folder of Markdown files in git: ${SPEC_URL}
 `;
 }
 
+/** Every command with its long options, in --help order (the README documents each one). */
+export function commandOptions(): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(COMMANDS).map(([name, c]) => [name, Object.keys(c.options).filter(o => o !== 'help')]));
+}
+
 function usageError(message: string, command: string | undefined, io: Output): number {
   io.err(`ob: ${message}\nRun "ob ${command ? `${command} ` : ''}--help" for usage.\n`);
   return 2;

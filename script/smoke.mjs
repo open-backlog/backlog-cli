@@ -13,6 +13,14 @@ const tmp = mkdtempSync(join(tmpdir(), 'ob-smoke-'));
 const fail = msg => { console.error(`smoke: FAILED — ${msg}`); process.exitCode = 1; };
 try {
   const tgz = execFileSync('npm', ['pack', '--silent', '--pack-destination', tmp], { cwd: root, encoding: 'utf8' }).trim().split('\n').pop();
+  // Only what a user needs: the built code and its types, the schema, the README, the licence.
+  const [packed] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--silent'], { cwd: root, encoding: 'utf8' }));
+  const files = packed.files.map(f => f.path);
+  const extra = files.filter(f => !/^(package\.json|README\.md|LICENSE|schema\/\d+\.\d+\/[a-z]+\.schema\.json|dist\/(core|cli)\/[a-z-]+\.(js|d\.ts))$/.test(f));
+  const missing = ['package.json', 'README.md', 'LICENSE', 'dist/cli/main.js', 'dist/core/index.js', 'dist/core/index.d.ts', 'schema/0.1/item.schema.json'].filter(f => !files.includes(f));
+  if (extra.length || missing.length || pkg.private) fail(`the package has ${extra.join(', ') || 'nothing extra'}, lacks ${missing.join(', ') || 'nothing'}, private: ${pkg.private ?? false}`);
+  else console.log(`smoke: the package is ${files.length} files: dist (js and types), schema, README, LICENSE, package.json`);
+
   execFileSync('npm', ['install', '--global', '--prefix', tmp, '--silent', join(tmp, tgz)], { stdio: 'inherit' });
 
   const version = execFileSync(join(tmp, 'bin', 'ob'), ['--version'], { encoding: 'utf8' }).trim();

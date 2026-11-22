@@ -1,0 +1,42 @@
+name: Publish
+
+# On a version tag (v0.1.0): the full check, then npm publish of that version to npm as
+# open-backlog. The tag must be the version in package.json, or nothing is published.
+# npm signs provenance only for packages built in a public repository, so --provenance comes
+# when backlog-cli goes public (3.2.4).
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+  # For npm trusted publishing (OIDC), once it is set up for the package; the NPM_TOKEN secret
+  # can then be deleted.
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: The tag is the package's version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::the tag is $GITHUB_REF_NAME but package.json has $version"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run check
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
