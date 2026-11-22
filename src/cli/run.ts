@@ -1,11 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
 import { addComment, addItem, BacklogError, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
+import { boardLaunch, runBoard } from './serve.js';
+import type { Launch } from './serve.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
@@ -16,6 +19,8 @@ export interface Output {
   now?: Date;
   /** The terminal's width when writing to one; undefined when piped, so nothing is cut. */
   columns?: number;
+  /** ob serve: runs the board and returns its exit code (default: in this terminal, runBoard). */
+  board?: (launch: Launch) => number;
 }
 
 const STD: Output = {
@@ -400,6 +405,35 @@ items show for 30 days, as in ob list; the progress counts every item.
       }
       if (hidden) io.err(`ob: ${hidden} done ${hidden === 1 ? 'item' : 'items'} finished over 30 days ago not shown; --all shows them\n`);
       return 0;
+    },
+  },
+  serve: {
+    summary: 'start the board for this backlog and open it in your browser',
+    help: `Usage: ob serve [--port <n>] [--no-open]
+
+Starts the board (open-backlog-board) for the backlog here, on this computer only, at
+http://127.0.0.1:4310/ (or the next free port), and opens it in your browser. Each change you
+make on the board is one commit; nothing is shared until you click Sync. Stop it with Ctrl-C.
+
+It uses an installed open-backlog-board when it is the one for this ob (same major and minor
+version); otherwise it runs that version from npm with npx, downloaded the first time.
+
+  --port <n>  listen on this port
+  --no-open   don't open the browser; ob prints the address
+`,
+    options: { port: { type: 'string' }, 'no-open': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      if (positionals.length) return usageError(`serve takes no arguments (got "${positionals.join(' ')}"); run it in the backlog's repository`, 'serve', io);
+      const port = values['port'];
+      if (typeof port === 'string' && !/^\d{1,5}$/.test(port)) return usageError(`--port ${port} is not a port number`, 'serve', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      findBacklog(cwd);
+      const launch = boardLaunch({
+        folder: cwd, version: packageVersion(), from: [cwd, fileURLToPath(new URL('../..', import.meta.url))],
+        ...(typeof port === 'string' ? { port } : {}), open: values['no-open'] !== true,
+      });
+      io.err(`${launch.note}\n`);
+      return (io.board ?? runBoard)(launch);
     },
   },
 };

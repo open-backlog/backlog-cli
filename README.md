@@ -16,7 +16,8 @@ npm i -g open-backlog
 ob --version
 ```
 
-To run it once without installing: `npx -p open-backlog ob <command>`.
+To run it once without installing: `npx -p open-backlog ob <command>`. `ob serve` starts the
+board in your browser, and fetches it the first time you use it.
 
 ## A five-minute start
 
@@ -254,6 +255,28 @@ This checks every file against the spec and prints each problem as
   that came with it get the new parent. It's one commit: `ob: renumber 1.1.1 to 1.1.2`.
 - `--no-commit`: with `--fix`, leave committing to you.
 - `--json`: `{ backlog, valid, errors, warnings, problems, renumbered }`, for other tools.
+
+### ob serve
+
+```sh
+ob serve [--port <n>] [--no-open]
+```
+
+This starts the board for the backlog you're in and opens it in your browser: drag cards between
+todo, doing and done, edit items, comment, see the plan's progress, and Sync with your team. It
+runs on your computer only, at `http://127.0.0.1:4310/` (or the next free port). Each change on
+the board is one commit, as with `ob`, and nothing is shared until you click Sync. Stop it with
+Ctrl-C; stopping changes nothing in the repository.
+
+The board is its own package,
+[open-backlog-board](https://www.npmjs.com/package/open-backlog-board), so `open-backlog` stays
+small. `ob serve` runs the board that goes with your `ob`, the one with the same major and minor
+version (`ob` 0.3.x runs board 0.3.x). If that board is installed, in the project or globally,
+it runs it. Otherwise it runs it from npm with `npx`, which downloads it the first time. You
+don't need to install anything else.
+
+- `--port <n>`: listen on this port.
+- `--no-open`: don't open the browser; `ob serve` prints the address.
 
 ## Checking the backlog in a hook and in CI
 

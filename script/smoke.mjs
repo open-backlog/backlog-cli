@@ -3,7 +3,7 @@
 // `ob --version`, imports 'open-backlog' by name to check the library entry loads without the
 // CLI, and reads a fixture backlog through it.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -113,6 +113,19 @@ try {
   const today = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
   if (!commented.includes(`- ${today} @smoke: Smoke tested`) || !storyText.endsWith(`## Comments\n- ${today} @smoke: Smoke tested\n`)) fail(`ob comment printed "${commented.trim()}"; file ends "${storyText.slice(-80)}"`);
   else console.log('smoke: the installed ob comment adds a signed line under ## Comments');
+
+  // ob serve with a board installed globally beside ob (a stand-in that prints what it was
+  // given): ob runs it with node, for this folder, with no npm download. The package itself
+  // carries no board.
+  const line = pkg.version.split('.').slice(0, 2).join('.');
+  const fake = join(tmp, 'lib', 'node_modules', 'open-backlog-board');
+  mkdirSync(fake, { recursive: true });
+  writeFileSync(join(fake, 'package.json'), JSON.stringify({ name: 'open-backlog-board', version: `${line}.0`, bin: { 'open-backlog-board': 'main.js' } }));
+  writeFileSync(join(fake, 'main.js'), 'console.log(JSON.stringify(process.argv.slice(2)))\n');
+  const served = spawnSync(join(tmp, 'bin', 'ob'), ['serve', '--port', '4999', '--no-open'], { cwd: join(code, 'src'), encoding: 'utf8' });
+  const boardArgs = served.stdout.trim();
+  if (served.status !== 0 || boardArgs !== JSON.stringify([realpathSync(join(code, 'src')), '--port', '4999']) || !served.stderr.startsWith(`Starting open-backlog-board ${line}.0`) || pkg.dependencies['open-backlog-board'] || files.some(f => f.includes('board'))) fail(`ob serve exited ${served.status}: ${boardArgs} ${served.stderr}`);
+  else console.log(`smoke: ob serve runs the installed open-backlog-board ${line}.0 for this folder; the package carries no board`);
 
   // A reader that stops early (ob show | head): the pipe is closed before ob writes, and ob
   // stops quietly with exit 0, not a stack trace.
