@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addItem, BacklogError, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import { addComment, addItem, BacklogError, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
@@ -219,6 +219,41 @@ their items.
       return moveCommand(id, 'done', values, io, 'done');
     },
   },
+  comment: {
+    summary: 'add a dated, signed comment to an item, in one commit',
+    help: `Usage: ob comment <id> <text> [--as <handle>] [--no-commit]
+
+Adds "- YYYY-MM-DD @handle: text" under the item's ## Comments (making the section at the end if
+there is none), the same line you would add by hand, and commits that file alone:
+"ob: comment on 2.3.4". Any item: a story, bug, spike or task in any folder, a feature, an
+epic or a capability.
+
+  ob comment 2.3.4 "Started; testing on beta"
+
+The handle is from git config ob.handle (set it once: git config --global ob.handle jo-smith),
+never your git email, so no email address is written to the file.
+
+  --as <handle>  sign it with this handle instead
+  --no-commit    write the line, leave committing to you
+`,
+    options: { as: { type: 'string' }, 'no-commit': { type: 'boolean' } },
+    run: (values, positionals, io) => {
+      const [id, ...words] = positionals;
+      if (id === undefined || !words.length) return usageError('ob comment needs an id and the text, such as: ob comment 2.3.4 "Started"', 'comment', io);
+      const cwd = realpathSync(io.cwd ?? process.cwd());
+      const b = loadBacklog(findBacklog(cwd));
+      const r = addComment(b, id, {
+        text: words.join(' '),
+        ...(typeof values['as'] === 'string' ? { handle: values['as'] } : {}),
+        commit: values['no-commit'] !== true,
+        ...(io.now ? { day: io.now } : {}),
+      });
+      io.out(`Commented on ${id}: ${relative(cwd, join(b.dir, r.path))}\n${r.line}\n`);
+      if (r.committed) io.out(`Committed: ${message.comment(id)}\n`);
+      else if (values['no-commit'] === true) io.out('Not committed (--no-commit).\n');
+      return 0;
+    },
+  },
   list: {
     summary: 'list stories, bugs, spikes and tasks in build order, filtered',
     help: `Usage: ob list [filters] [--all] [--json]
@@ -281,9 +316,9 @@ Each filter takes one value or several joined by commas (--status todo,doing).
     summary: 'show an item: where it sits, its file, children, progress and history',
     help: `Usage: ob show <id> [--json]
 
-Prints the item's place in the plan (2-build › 2.3-cli › 2.3.4-ob-move), its file, its file's
-text, its children (with progress, for a capability, epic or feature) and the commits that
-touched it. An ID pruned with git rm is found in git history: its last version, marked deleted.
+Prints the item's place in the plan (2-build › 2.3-cli › 2.3.4-ob-move), its file, how many
+comments it has, its file's text (comments included), its children (with progress, for a
+capability, epic or feature) and the commits that touched it. An ID pruned with git rm is found in git history: its last version, marked deleted.
 
   --json  the same, as JSON, for other tools
 `,
@@ -304,6 +339,8 @@ touched it. An ID pruned with git rm is found in git history: its last version, 
       if (s.deleted) lines.push(`Deleted in ${s.deleted.hash} on ${s.deleted.date} by ${s.deleted.author}: ${s.deleted.subject}. Its last version:`);
       if (s.progress) lines.push(`Progress: ${progressText(s.progress)}, ${s.progress.doing} doing, ${s.progress.todo} todo`);
       if (s.sameId.length) lines.push(`Also id ${id}: ${s.sameId.join(', ')} (run ob validate --fix)`);
+      const lastComment = s.comments[s.comments.length - 1];
+      if (lastComment) lines.push(`Comments: ${s.comments.length}, the last on ${lastComment.date} by @${lastComment.handle}`);
       lines.push('', s.text.trimEnd());
       if (s.children.length) {
         const w = Math.max(...s.children.map(c => c.id.length));

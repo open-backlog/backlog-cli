@@ -15,6 +15,9 @@ export { SPEC_URL, SPEC_VERSION } from './spec.js';
 export { addItem, ITEM_TYPES, SLUG_PATTERN, UNPLANNED_TYPES } from './add.js';
 export type { AddOptions, Added } from './add.js';
 
+export { addComment, commentsOf, configuredHandle, dayOf, HANDLE_PATTERN, withComment } from './comment.js';
+export type { Comment, CommentOptions, Commented } from './comment.js';
+
 export { fixDuplicates } from './fix.js';
 export type { Renumbered } from './fix.js';
 export { addedIn, changes, commit, git, history, isAncestor, isClean, message, monthOf, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';

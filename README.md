@@ -81,6 +81,17 @@ $ ob validate
 backlog/ is valid, 7 items
 ```
 
+Leave a comment on it. `ob` signs it with your handle, which you set once in git; it never
+writes your email:
+
+```sh
+$ git config --global ob.handle ana
+$ ob comment 1.1.1 "Card form done; tested on Safari"
+Commented on 1.1.1: backlog/stories/done/1.1.1-card-form.md
+- 2026-11-21 @ana: Card form done; tested on Safari
+Committed: ob: comment on 1.1.1
+```
+
 Open `backlog/stories/todo/1.1.2-save-the-card.md` in any editor to write the story. `ob show
 1.1.2` prints it with where it sits in the plan and its history. Push, and your team has the
 backlog with the code.
@@ -158,6 +169,26 @@ move: their status comes from their items.
 
 - `--no-commit`: stage the `git mv` and leave committing to you.
 
+### ob comment
+
+```sh
+ob comment <id> <text> [--as <handle>] [--no-commit]
+```
+
+This adds `- YYYY-MM-DD @handle: text` under the item's `## Comments`, making the section at the
+end if there is none. It's the same line you would add by hand, and nothing else in the file
+changes. It commits that file alone: `ob: comment on 1.1.1`. It works on any item: a story, bug,
+spike or task in any folder, a feature, an epic or a capability. Comments live in the file, so
+they move with the story.
+
+The handle comes from `git config ob.handle`; set it once with
+`git config --global ob.handle <handle>`. `ob` never uses your git email or name, so no email
+address is written to the file, and it refuses a comment whose text holds one.
+
+- `--as <handle>`: sign it with this handle instead.
+- `--no-commit`: write the line and leave committing to you. Without it, `ob comment` refuses a
+  file that already has uncommitted changes, so the commit holds only the comment.
+
 ### ob list
 
 ```sh
@@ -187,12 +218,12 @@ ob show <id> [--json]
 ```
 
 This prints an item's place in the plan (`1-checkout › 1.1-pay-by-card › 1.1.1-card-form`), its
-file's path and status, and the file itself. Then come its children, with a progress line for a
+file's path and status, how many comments it has, and the file itself, comments included. Then come its children, with a progress line for a
 capability, epic or feature ("1/2 done (50%), 0 doing, 1 todo"), and every commit that touched
 it. An ID removed with `git rm` is found in git history and shown as its last version, marked
 deleted, with the commit that removed it.
 
-- `--json`: the same, as JSON.
+- `--json`: the same, as JSON, with the comments as a list (date, handle, text).
 
 ### ob tree
 
@@ -264,6 +295,7 @@ Single-file rules use the spec's JSON Schema, which ships in this package under 
 
 `ob` runs your own `git`, so your identity, keys, hooks and settings all apply, and it needs no
 token. Each command commits only the files it changed, never anything else you have staged.
+`ob` never writes your git email or name into the backlog; comments are signed with a handle.
 Outside a git repository, everything except committing still works.
 
 ## The library
@@ -279,7 +311,7 @@ const { problems } = validateDir(backlog.dir);
 
 It also covers writing items without reformatting them (`setFields`, `updateItem`,
 `createItem`), ordering (`buildOrder`), git (`moveItem`, `nextId`, `history`) and the commands'
-own functions (`initBacklog`, `addItem`, `listItems`, `showItem`, `fixDuplicates`). It ships
+own functions (`initBacklog`, `addItem`, `addComment`, `listItems`, `showItem`, `fixDuplicates`). It ships
 TypeScript types.
 
 ## Develop

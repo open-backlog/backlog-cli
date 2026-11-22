@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { commandOptions, run } from '../src/cli/run.js';
 import { SPEC_VERSION } from '../src/core/index.js';
@@ -15,7 +15,19 @@ import { SPEC_VERSION } from '../src/core/index.js';
 const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const NOV = new Date(2026, 10, 21);
 const tmps: string[] = [];
-afterEach(() => { for (const t of tmps.splice(0)) rmSync(t, { recursive: true, force: true }); });
+const saved = { ...process.env };
+// The five-minute start runs git config --global: here that's a file of the test's own.
+beforeEach(() => {
+  const global = join(realpathSync(mkdtempSync(join(tmpdir(), 'ob-readme-gitconfig-'))), 'config');
+  tmps.push(join(global, '..'));
+  writeFileSync(global, '');
+  process.env['GIT_CONFIG_GLOBAL'] = global;
+  process.env['GIT_CONFIG_NOSYSTEM'] = '1';
+});
+afterEach(() => {
+  for (const t of tmps.splice(0)) rmSync(t, { recursive: true, force: true });
+  for (const k of ['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']) if (saved[k] === undefined) Reflect.deleteProperty(process.env, k); else process.env[k] = saved[k];
+});
 
 /** The ```sh blocks of a section, from its "## " heading to the next. */
 function shBlocks(heading: string): string[] {
@@ -76,6 +88,6 @@ describe('the README (the npm page)', () => {
         if (shown.length) expect(out, line).toBe(`${shown.join('\n')}\n`);
       }
     }
-    expect(commands).toBeGreaterThanOrEqual(12);
+    expect(commands).toBeGreaterThanOrEqual(14);
   });
 });

@@ -106,6 +106,14 @@ try {
   if (!tree.startsWith('0  todo   0/1 done (0%)') || shown !== '1-launch › 1.1-sign-up › 1.1.1-form / ../backlog/stories/doing/1.1.1-form.md  doing') fail(`ob tree "${tree}"; ob show "${shown}"`);
   else console.log('smoke: the installed ob tree and ob show print the plan and an item');
 
+  // ob comment, signed with --as (no git identity in CI): the line, under ## Comments, no commit.
+  const commented = ob('comment', '1.1.1', 'Smoke tested', '--as', 'smoke', '--no-commit');
+  const storyText = readFileSync(join(code, 'backlog', 'stories', 'doing', '1.1.1-form.md'), 'utf8');
+  const day = new Date();
+  const today = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  if (!commented.includes(`- ${today} @smoke: Smoke tested`) || !storyText.endsWith(`## Comments\n- ${today} @smoke: Smoke tested\n`)) fail(`ob comment printed "${commented.trim()}"; file ends "${storyText.slice(-80)}"`);
+  else console.log('smoke: the installed ob comment adds a signed line under ## Comments');
+
   // A reader that stops early (ob show | head): the pipe is closed before ob writes, and ob
   // stops quietly with exit 0, not a stack trace.
   const early = spawn(join(tmp, 'bin', 'ob'), ['show', '1.1.1'], { cwd: code, stdio: ['ignore', 'pipe', 'pipe'] });

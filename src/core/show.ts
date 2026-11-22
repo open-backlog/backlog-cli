@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { commentsOf } from './comment.js';
+import type { Comment } from './comment.js';
 import { git, history, repoRoot } from './git.js';
 import type { LogEntry } from './git.js';
 import { buildTree, isStoryLevel, progressOf } from './hierarchy.js';
@@ -38,6 +40,8 @@ export interface Shown {
   deleted: LogEntry | null;
   /** Other items with the same ID ([id-unique]), if any. */
   sameId: string[];
+  /** The comments under `## Comments`, oldest first (2.3.9). */
+  comments: Comment[];
 }
 
 const stem = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '');
@@ -64,11 +68,12 @@ export function showItem(b: Backlog, id: string): Shown {
 
   if (node) {
     const item = node.item;
+    const text = readFileSync(join(b.dir, item.path), 'utf8');
     return {
       id, type: item.type, title: item.title, path: item.path, breadcrumb: crumbs(item, stem(item.path)),
-      status: item.status ?? null, fields: item.fields, text: readFileSync(join(b.dir, item.path), 'utf8'),
+      status: item.status ?? null, fields: item.fields, text,
       progress: isStoryLevel(item) ? null : progressOf(node), children: childrenOf(id),
-      history: history(join(b.dir, item.path)), deleted: null, sameId,
+      history: history(join(b.dir, item.path)), deleted: null, sameId, comments: commentsOf(text),
     };
   }
 
@@ -81,7 +86,7 @@ export function showItem(b: Backlog, id: string): Shown {
   return {
     id, type, title: String(fields['title'] ?? ''), path: pruned.path, breadcrumb: crumbs(ghost, stem(pruned.path)),
     status: statusOf(pruned.path) ?? null, fields, text: pruned.text, progress: null, children: childrenOf(id),
-    history: pruned.history, deleted: pruned.deleted, sameId: [],
+    history: pruned.history, deleted: pruned.deleted, sameId: [], comments: commentsOf(pruned.text),
   };
 }
 

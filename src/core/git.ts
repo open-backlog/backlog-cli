@@ -38,6 +38,7 @@ export const message = {
   move: (id: string, status: Status) => `ob: move ${id} to ${status}`,
   add: (id: string, title: string) => `ob: add ${id} ${title}`,
   edit: (id: string, what: string) => `ob: edit ${id} ${what}`,
+  comment: (id: string) => `ob: comment on ${id}`,
   renumber: (changes: { from: string; to: string }[]) => `ob: renumber ${changes.map(c => `${c.from} to ${c.to}`).join(', ')}`,
 };
 
