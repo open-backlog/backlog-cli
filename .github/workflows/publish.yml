@@ -1,15 +1,17 @@
 name: Publish
 
-# On a version tag (v0.1.0): the full check, then npm publish of that version to npm as
-# open-backlog. The tag must be the version in package.json, or nothing is published.
+# On every push to main: if package.json's version isn't on npm yet, the full check, then npm
+# publish as open-backlog, then a tag v<version> on that commit. A push that doesn't change the
+# version publishes nothing. So a release is: change "version", commit, push.
 # npm signs provenance only for packages built in a public repository, so --provenance comes
 # when backlog-cli goes public (3.2.4).
 on:
   push:
-    tags: ['v*.*.*']
+    branches: [main]
 
 permissions:
-  contents: read
+  # To push the v<version> tag.
+  contents: write
   # For npm trusted publishing (OIDC), once it is set up for the package; the NPM_TOKEN secret
   # can then be deleted.
   id-token: write
@@ -28,15 +30,28 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
-      - name: The tag is the package's version
+      - name: Is this version new?
+        id: version
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::the tag is $GITHUB_REF_NAME but package.json has $version"
-            exit 1
-          fi
-      - run: npm ci
-      - run: npm run check
-      - run: npm publish --access public
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # The public registry, without auth: 200 published, 404 not yet, anything else stops.
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/open-backlog/$version")
+          case "$status" in
+            200) echo "open-backlog $version is already on npm: nothing to publish"; echo "new=false" >> "$GITHUB_OUTPUT" ;;
+            404) echo "open-backlog $version is new: checking, then publishing"; echo "new=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::the npm registry answered $status for open-backlog $version"; exit 1 ;;
+          esac
+      - if: steps.version.outputs.new == 'true'
+        run: npm ci
+      - if: steps.version.outputs.new == 'true'
+        run: npm run check
+      - if: steps.version.outputs.new == 'true'
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - if: steps.version.outputs.new == 'true'
+        name: Tag the release
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"

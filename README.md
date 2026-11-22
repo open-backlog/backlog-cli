@@ -301,8 +301,9 @@ npm install -g .     # ob on your PATH, from this checkout (after npm run build)
 | `schema/` | backlog-spec's JSON Schema, copied by `script/sync-spec.sh` |
 | `script/smoke.mjs` | packs the package, checks its file list, installs it globally into a temporary folder and runs the commands |
 
-To release, set `version` in `package.json`, commit, and push a tag `v<version>`. The publish
-workflow runs the full check and publishes to npm.
+To release, change `version` in `package.json` (`npm version patch --no-git-tag-version`),
+commit and push to `main`. The publish workflow sees a version that isn't on npm yet, runs the
+full check, publishes it and tags the commit `v<version>`. Any other push publishes nothing.
 
 ## License
 

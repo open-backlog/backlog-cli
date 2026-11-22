@@ -2,7 +2,7 @@
 // into a temporary prefix (npm i -g, without touching your real global packages), runs
 // `ob --version`, imports 'open-backlog' by name to check the library entry loads without the
 // CLI, and reads a fixture backlog through it.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -105,6 +105,16 @@ try {
   const shown = ob('show', '1.1.1').split('\n').slice(0, 2).join(' / ');
   if (!tree.startsWith('0  todo   0/1 done (0%)') || shown !== '1-launch › 1.1-sign-up › 1.1.1-form / ../backlog/stories/doing/1.1.1-form.md  doing') fail(`ob tree "${tree}"; ob show "${shown}"`);
   else console.log('smoke: the installed ob tree and ob show print the plan and an item');
+
+  // A reader that stops early (ob show | head): the pipe is closed before ob writes, and ob
+  // stops quietly with exit 0, not a stack trace.
+  const early = spawn(join(tmp, 'bin', 'ob'), ['show', '1.1.1'], { cwd: code, stdio: ['ignore', 'pipe', 'pipe'] });
+  early.stdout.destroy();
+  let earlyErr = '';
+  early.stderr.on('data', d => { earlyErr += d; });
+  const earlyCode = await new Promise(resolve => early.on('close', resolve));
+  if (earlyCode !== 0 || earlyErr) fail(`ob show into a closed pipe exited ${earlyCode}: ${earlyErr.split('\n')[0]}`);
+  else console.log('smoke: ob into a pipe that closes early (ob show | head) stops quietly, exit 0');
 
   for (const f of readdirSync(join(installed, 'dist', 'core'))) {
     if (f.endsWith('.js') && /from\s+["'][^"']*\/cli\//.test(readFileSync(join(installed, 'dist', 'core', f), 'utf8'))) fail(`dist/core/${f} imports the CLI`);
