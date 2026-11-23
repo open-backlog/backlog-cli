@@ -347,7 +347,7 @@ TypeScript types.
 
 ## Develop
 
-To work on `ob` itself, from a clone of backlog-cli:
+To work on `ob` itself, from a clone of [backlog-cli](https://github.com/open-backlog/backlog-cli):
 
 ```sh
 npm install
@@ -366,8 +366,19 @@ npm install -g .     # ob on your PATH, from this checkout (after npm run build)
 
 To release, change `version` in `package.json` (`npm version patch --no-git-tag-version`),
 commit and push to `main`. The publish workflow sees a version that isn't on npm yet, runs the
-full check, publishes it and tags the commit `v<version>`. Any other push publishes nothing.
+full check, publishes it through npm trusted publishing with provenance, and tags the commit
+`v<version>`. Any other push publishes nothing.
+
+## Contributing
+
+Report a bug or suggest an idea as a [GitHub issue](https://github.com/open-backlog/backlog-cli/issues/new/choose),
+then send a pull request: [CONTRIBUTING.md](https://github.com/open-backlog/backlog-cli/blob/main/CONTRIBUTING.md).
+A change to the rules belongs in the [specification](https://github.com/open-backlog/backlog-spec),
+and a board bug in [backlog-board](https://github.com/open-backlog/backlog-board). Everyone taking
+part follows the [code of conduct](https://github.com/open-backlog/backlog-cli/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
-MIT. The specification is CC BY 4.0.
+The code is [MIT](https://github.com/open-backlog/backlog-cli/blob/main/LICENSE). The Open
+Backlog name and logo are not covered by the MIT license: you may use them to refer to the
+project, but not to brand your own product or a fork. The specification is CC BY 4.0.

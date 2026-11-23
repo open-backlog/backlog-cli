@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Propose a change to the rules
+    url: https://github.com/open-backlog/backlog-spec/issues/new/choose
+    about: The format itself (folders, fields, IDs) is the specification's, not ob's.
+  - name: Report a board bug
+    url: https://github.com/open-backlog/backlog-board/issues/new/choose
+    about: ob serve runs open-backlog-board, which has its own issues.

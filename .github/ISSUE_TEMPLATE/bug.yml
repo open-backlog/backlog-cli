@@ -1,0 +1,32 @@
+name: Bug
+description: Something ob or the open-backlog library does wrong.
+labels: ["bug"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The command you ran, or the library function you called.
+      placeholder: ob new story "Card form" --parent 1.2
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What ob printed or did, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: ob --version, node --version, git --version and your system.
+      placeholder: ob 0.3.3, Node 24, git 2.54, macOS
+    validations:
+      required: true
+  - type: textarea
+    id: backlog
+    attributes:
+      label: The backlog
+      description: The smallest backlog that shows it, or the files involved. Leave out anything private.

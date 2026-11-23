@@ -3,8 +3,8 @@ name: Publish
 # On every push to main: if package.json's version isn't on npm yet, the full check, then npm
 # publish as open-backlog, then a tag v<version> on that commit. A push that doesn't change the
 # version publishes nothing. So a release is: change "version", commit, push.
-# npm signs provenance only for packages built in a public repository, so --provenance comes
-# when backlog-cli goes public (3.2.4).
+# It publishes through npm trusted publishing from open-backlog/backlog-cli (no token anywhere),
+# with provenance: the npm page shows which commit and workflow built each version.
 on:
   push:
     branches: [main]
@@ -12,8 +12,7 @@ on:
 permissions:
   # To push the v<version> tag.
   contents: write
-  # For npm trusted publishing (OIDC), once it is set up for the package; the NPM_TOKEN secret
-  # can then be deleted.
+  # For npm trusted publishing (OIDC) and provenance.
   id-token: write
 
 concurrency:
@@ -47,9 +46,7 @@ jobs:
       - if: steps.version.outputs.new == 'true'
         run: npm run check
       - if: steps.version.outputs.new == 'true'
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
       - if: steps.version.outputs.new == 'true'
         name: Tag the release
         run: |

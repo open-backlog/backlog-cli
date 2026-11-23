@@ -5,6 +5,13 @@
   "license": "MIT",
   "author": "Brandon Castagna",
   "homepage": "https://openbacklog.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-backlog/backlog-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/open-backlog/backlog-cli/issues"
+  },
   "keywords": [
     "backlog",
     "agile",
