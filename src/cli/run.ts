@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addComment, addItem, BacklogError, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import { addComment, addItem, BacklogError, installHook, planHook, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 import { boardLaunch, runBoard } from './serve.js';
 import type { Launch } from './serve.js';
@@ -49,7 +49,7 @@ interface Command {
 const COMMANDS: Record<string, Command> = {
   init: {
     summary: 'create backlog/ with config.yml and its folders',
-    help: `Usage: ob init [--name <name>] [--readme]
+    help: `Usage: ob init [--name <name>] [--readme] [--hook]
 
 Creates backlog/ at the top of this git repository (or here, outside git): a config.yml with
 spec and name, and epics/, features/ and stories/todo, doing and done/, each with a .gitkeep.
@@ -58,26 +58,37 @@ If backlog/config.yml is already there, nothing changes.
   --name <name>  the backlog's name: lowercase letters, digits and dashes
                  (default: the repository's folder name)
   --readme       also write backlog/README.md, explaining the folders
+  --hook         also install a git pre-commit hook that runs ob validate, so a commit
+                 that breaks the backlog is refused; run it in each clone (git doesn't
+                 share hooks), also on a backlog that already exists
 `,
-    options: { name: { type: 'string' }, readme: { type: 'boolean' } },
+    options: { name: { type: 'string' }, readme: { type: 'boolean' }, hook: { type: 'boolean' } },
     run: (values, positionals, io) => {
       if (positionals.length) return usageError(`init takes no arguments (got "${positionals.join(' ')}")`, 'init', io);
       // Real paths on both sides: git gives the repository's top through symlinks (macOS /var).
       const cwd = realpathSync(io.cwd ?? process.cwd());
       const dir = initDir(cwd);
       const shown = relative(cwd, dir) || '.';
+      // The hook is checked before anything is written: an existing hook of its own stops it all.
+      const hook = values['hook'] === true ? planHook(cwd) : null;
       const r = initBacklog(dir, {
         ...(typeof values['name'] === 'string' ? { name: values['name'] } : {}),
         readme: values['readme'] === true,
       });
-      if (r.existed) {
-        io.out(`${shown}/ already exists${r.name ? ` (${r.name})` : ''}: nothing changed.\n`);
-        return 0;
+      if (r.existed) io.out(`${shown}/ already exists${r.name ? ` (${r.name})` : ''}: ${hook ? 'kept as it is' : 'nothing changed'}.\n`);
+      else {
+        io.out(`Created the ${r.name} backlog in ${shown}/:\n${r.created.map(p => `  ${p}\n`).join('')}`);
+        io.out(repoRoot(cwd)
+          ? `Next: git add ${shown} && git commit -m "ob: init ${r.name} backlog"\n`
+          : 'Not in a git repository: run git init here to give the backlog its history.\n');
       }
-      io.out(`Created the ${r.name} backlog in ${shown}/:\n${r.created.map(p => `  ${p}\n`).join('')}`);
-      io.out(repoRoot(cwd)
-        ? `Next: git add ${shown} && git commit -m "ob: init ${r.name} backlog"\n`
-        : 'Not in a git repository: run git init here to give the backlog its history.\n');
+      if (hook) {
+        const h = installHook(cwd, packageVersion());
+        const where = relative(cwd, h.path);
+        io.out(h.written
+          ? `Installed the pre-commit hook ${where}: ob validate runs before each commit, and a commit that breaks the backlog is refused.\n`
+          : `The pre-commit hook ${where} already runs ob validate: nothing changed.\n`);
+      } else if (!r.existed && repoRoot(cwd)) io.out('To check the backlog before every commit: ob init --hook\n');
       return 0;
     },
   },

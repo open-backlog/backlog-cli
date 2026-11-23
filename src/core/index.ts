@@ -23,6 +23,8 @@ export type { Renumbered } from './fix.js';
 export { addedIn, changes, commit, git, history, isAncestor, isClean, message, monthOf, move, moveItem, nextId, pull, push, repoRoot, statusPath, usedIds } from './git.js';
 export type { LogEntry } from './git.js';
 export { initBacklog, initDir, INIT_FOLDERS, INIT_README, NAME_PATTERN } from './init.js';
+export { hookPath, hookText, installHook, planHook } from './hook.js';
+export type { Hook } from './hook.js';
 export type { InitOptions, InitResult } from './init.js';
 export { buildOrder, buildTree, columnOrder, isStoryLevel, progressOf, STORY_LEVEL_TYPES, walk } from './hierarchy.js';
 export type { Node, Progress, Tree } from './hierarchy.js';

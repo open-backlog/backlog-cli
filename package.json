@@ -1,6 +1,6 @@
 {
   "name": "open-backlog",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Open Backlog: a backlog as Markdown files in git. The ob command, and the core library it is built on.",
   "license": "MIT",
   "author": "Brandon Castagna",

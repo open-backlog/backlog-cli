@@ -33,6 +33,7 @@ Created the shop backlog in backlog/:
   stories/doing/.gitkeep
   stories/done/.gitkeep
 Next: git add backlog && git commit -m "ob: init shop backlog"
+To check the backlog before every commit: ob init --hook
 $ git add backlog && git commit -m "ob: init shop backlog"
 ```
 
@@ -121,7 +122,7 @@ Every command takes `--help`. `ob --help` lists them all.
 ### ob init
 
 ```sh
-ob init [--name <name>] [--readme]
+ob init [--name <name>] [--readme] [--hook]
 ```
 
 This creates `backlog/` at the top of the git repository (or in the current folder, outside git).
@@ -132,6 +133,11 @@ command to run.
 - `--name <name>`: the backlog's name, made of lowercase letters, digits and dashes. It
   defaults to the repository's folder name.
 - `--readme`: also write `backlog/README.md`, which explains the folders.
+- `--hook`: also install a git pre-commit hook that runs `ob validate`, so a commit that breaks
+  the backlog is refused. Git doesn't share hooks, so run `ob init --hook` once in each clone; on
+  a backlog that already exists it adds just the hook. The hook uses `ob` if it's installed,
+  otherwise the same version from npm with `npx`. An existing pre-commit hook is left alone, and
+  `ob` says what line to add to it.
 
 It never overwrites a file. If `backlog/config.yml` exists, it changes nothing and says so.
 
@@ -283,15 +289,14 @@ don't need to install anything else.
 
 ## Checking the backlog in a hook and in CI
 
-To refuse a commit that breaks the backlog, add a pre-commit hook. Save this as
-`.git/hooks/pre-commit` and make it executable with `chmod +x`:
+To refuse a commit that breaks the backlog, install the pre-commit hook in each clone:
 
 ```sh
-#!/bin/sh
-exec ob validate
+ob init --hook
 ```
 
-The hook checks the working tree, so a fix you haven't staged still counts. In CI, such as a
+It checks the working tree, so a fix you haven't staged still counts. To add it to a hook you
+already have, add the line `ob validate || exit 1`. In CI, such as a
 GitHub Actions step:
 
 ```yaml

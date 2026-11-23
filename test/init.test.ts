@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { run } from '../src/cli/run.js';
-import { INIT_FOLDERS, initBacklog, initDir, loadBacklog, validateDir } from '../src/core/index.js';
+import { packageVersion, run } from '../src/cli/run.js';
+import { hookText, INIT_FOLDERS, initBacklog, initDir, loadBacklog, validateDir } from '../src/core/index.js';
 
 const tmps: string[] = [];
 /** A new empty folder, as a real path (macOS /var is /private/var). */
@@ -123,5 +123,50 @@ describe('ob init', () => {
     expect(r).toMatchObject({ existed: false, name: 'my-app' });
     expect(r.created).toEqual(FILES.filter(f => f !== 'epics/.gitkeep'));
     expect(readFileSync(join(root, 'backlog', 'epics', '.gitkeep'), 'utf8')).toBe('mine\n');
+  });
+});
+
+describe('ob init --hook (3.1.2)', () => {
+  it('installs a pre-commit hook that runs ob validate, using ob or else npx at this version line', () => {
+    const root = tmp();
+    git(root, 'init', '-q');
+    mkdirSync(join(root, 'src'));
+    const r = ob(join(root, 'src'), '--hook');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('Created the my-app backlog in ../backlog/:');
+    expect(r.out).toContain('Installed the pre-commit hook ../.git/hooks/pre-commit: ob validate runs before each commit');
+    const hook = join(root, '.git', 'hooks', 'pre-commit');
+    expect(statSync(hook).mode & 0o111).toBeTruthy();
+    expect(readFileSync(hook, 'utf8')).toBe(hookText(packageVersion()));
+    expect(hookText('0.3.2')).toMatch(/^#!\/bin\/sh\n[\s\S]*\nif command -v ob >\/dev\/null 2>&1; then exec ob validate; fi\nexec npx --yes -p open-backlog@0\.3 ob validate\n$/);
+
+    // Again, or in another clone of a repository whose backlog exists: the hook alone.
+    expect(ob(root, '--hook').out).toBe('backlog/ already exists (my-app): kept as it is.\nThe pre-commit hook .git/hooks/pre-commit already runs ob validate: nothing changed.\n');
+    expect(ob(root).out).toBe('backlog/ already exists (my-app): nothing changed.\n');
+  });
+
+  it('says how to turn it on when it makes a backlog in git, and needs git for --hook', () => {
+    const root = tmp();
+    git(root, 'init', '-q');
+    expect(ob(root).out).toMatch(/\nTo check the backlog before every commit: ob init --hook\n$/);
+    const loose = tmp();
+    expect(ob(loose).out).not.toContain('--hook');
+    expect(ob(tmp(), '--hook')).toMatchObject({ code: 1, err: 'ob: --hook needs a git repository: run git init first\n' });
+  });
+
+  it('leaves a pre-commit hook of your own alone, before writing anything, and follows core.hooksPath', () => {
+    const root = tmp();
+    git(root, 'init', '-q');
+    mkdirSync(join(root, '.git', 'hooks'), { recursive: true });
+    writeFileSync(join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nnpm run lint\n');
+    const r = ob(root, '--hook');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/pre-commit is already a pre-commit hook; to check the backlog too, add this line to it: ob validate \|\| exit 1\n$/);
+    expect(existsSync(join(root, 'backlog'))).toBe(false);
+    expect(readFileSync(join(root, '.git', 'hooks', 'pre-commit'), 'utf8')).toBe('#!/bin/sh\nnpm run lint\n');
+
+    git(root, 'config', 'core.hooksPath', '.githooks');
+    expect(ob(root, '--hook').out).toContain('Installed the pre-commit hook .githooks/pre-commit');
+    expect(existsSync(join(root, '.githooks', 'pre-commit'))).toBe(true);
   });
 });
