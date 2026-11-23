@@ -200,4 +200,29 @@ describe('ob new', () => {
       created: [{ id: '0', path: 'epics/0-unplanned.md' }, { id: '0.1', path: 'features/0.1-2026-11.md' }, { id: '0.1.1', path: 'stories/todo/0.1.1-x.md' }],
     });
   });
+
+describe('ob new --repo (3.1.1)', () => {
+  it('writes repo from config.yml\'s repos: one name, or a list; anything else writes nothing', () => {
+    const root = project();
+    writeFileSync(join(root, 'backlog', 'config.yml'), 'spec: 0.1\nname: shop\nrepos:\n  shop-api: git@example.com:shop/api.git\n  shop-web: git@example.com:shop/web.git\n');
+    git(root, 'commit', '-qam', 'repos');
+    expect(ob(root, ['epic', 'Checkout']).code).toBe(0);
+    expect(ob(root, ['feature', 'Pay', '--parent', '1']).code).toBe(0);
+    expect(ob(root, ['story', 'Card form', '--parent', '1.1', '--repo', 'shop-web']).code).toBe(0);
+    expect(text(root, 'stories/todo/1.1.1-card-form.md')).toMatch(/^---\nid: 1\.1\.1\ntype: story\ntitle: Card form\nparent: 1\.1\nrepo: shop-web\n---\n/);
+    expect(ob(root, ['story', 'Pay API', '--parent', '1.1', '--repo', 'shop-api, shop-web']).code).toBe(0);
+    expect(text(root, 'stories/todo/1.1.2-pay-api.md')).toContain('\nrepo: [shop-api, shop-web]\n');
+    expect(problems(root)).toEqual([]);
+
+    const wrong = ob(root, ['story', 'Lost', '--parent', '1.1', '--repo', 'shop-ios']);
+    expect(wrong).toMatchObject({ code: 1, err: 'ob: shop-ios is not under repos: in config.yml; use one of shop-api, shop-web\n' });
+    expect(ob(root, ['story', 'Empty', '--parent', '1.1', '--repo', '']).code).toBe(1);
+    expect(readdirSync(join(root, 'backlog', 'stories', 'todo')).sort()).toEqual(['.gitkeep', '1.1.1-card-form.md', '1.1.2-pay-api.md']);
+  });
+
+  it('refuses a repo when config.yml lists none', () => {
+    const root = project();
+    expect(ob(root, ['epic', 'Checkout', '--repo', 'shop']).err).toBe('ob: shop is not under repos: in config.yml, which lists none; add it there first\n');
+  });
+});
 });

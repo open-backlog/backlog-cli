@@ -25,6 +25,8 @@ export interface AddOptions {
   title: string;
   parent?: string;
   slug?: string;
+  /** The item's repo field (3.1.1): names from config.yml's repos, written as one name or a list. */
+  repo?: string[];
   /** Commit the new files (default true; nothing to commit outside git). */
   commit?: boolean;
   /** The day, for this month's feature in epic 0. */
@@ -94,8 +96,16 @@ export function addItem(b: Backlog, opts: AddOptions): Added {
     throw new BacklogError('a feature needs --parent <epic>, such as --parent 2');
   }
 
+  // [repo-listed]: each name is a key of repos: in config.yml.
+  const repo = (opts.repo ?? []).map(r => r.trim()).filter(Boolean);
+  if (opts.repo !== undefined && !repo.length) throw new BacklogError('--repo needs a repository name, such as --repo shop-api');
+  const listed = Object.keys(b.config.repos ?? {});
+  for (const r of repo) {
+    if (!listed.includes(r)) throw new BacklogError(listed.length ? `${r} is not under repos: in config.yml; use one of ${listed.join(', ')}` : `${r} is not under repos: in config.yml, which lists none; add it there first`);
+  }
+
   const id = type === 'capability' ? nextId(b, undefined, true) : type === 'epic' ? nextId(b) : nextId(b, parent);
-  pending.push({ id, type, title, ...(parent ? { parent } : {}), ...(opts.slug ? { slug: opts.slug } : {}) });
+  pending.push({ id, type, title, ...(parent ? { parent } : {}), ...(opts.slug ? { slug: opts.slug } : {}), ...(repo.length ? { fields: { repo: repo.length === 1 ? repo[0] ?? '' : repo } } : {}) });
 
   const created = pending.map(n => ({ id: n.id, path: createItem(b.dir, n) }));
   const path = created[created.length - 1]?.path ?? '';

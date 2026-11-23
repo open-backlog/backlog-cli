@@ -83,7 +83,7 @@ If backlog/config.yml is already there, nothing changes.
   },
   new: {
     summary: 'add an item with the next free ID, from the template',
-    help: `Usage: ob new <type> <title> [--parent <id>] [--slug <slug>] [--edit] [--no-commit]
+    help: `Usage: ob new <type> <title> [--parent <id>] [--repo <name>] [--slug <slug>] [--edit] [--no-commit]
 
 Adds an item with the next free number under its parent, in a file named <id>-<slug>.md
 (stories, bugs, spikes and tasks in stories/todo/), and commits it: "ob: add 2.3.5 Title".
@@ -98,11 +98,13 @@ Adds an item with the next free number under its parent, in a file named <id>-<s
 
   --parent <id>  the item it is filed under: an epic for a feature, a feature for a story,
                  bug, spike or task; a capability for an epic (optional)
+  --repo <name>  the repository it's built in, from repos: in config.yml; several
+                 joined by commas (--repo shop-api,shop-web)
   --slug <slug>  the file name's words (default: from the title)
   --edit         open the new file in $VISUAL or $EDITOR before committing
   --no-commit    write the file, leave committing to you
 `,
-    options: { parent: { type: 'string', short: 'p' }, slug: { type: 'string' }, edit: { type: 'boolean', short: 'e' }, 'no-commit': { type: 'boolean' } },
+    options: { parent: { type: 'string', short: 'p' }, repo: { type: 'string' }, slug: { type: 'string' }, edit: { type: 'boolean', short: 'e' }, 'no-commit': { type: 'boolean' } },
     run: (values, positionals, io) => {
       const [type, ...words] = positionals;
       if (type === undefined || !words.length) return usageError('ob new needs a type and a title, such as: ob new story "Card form" --parent 1.2', 'new', io);
@@ -119,6 +121,7 @@ Adds an item with the next free number under its parent, in a file named <id>-<s
         type, title,
         ...(typeof values['parent'] === 'string' ? { parent: values['parent'] } : {}),
         ...(typeof values['slug'] === 'string' ? { slug: values['slug'] } : {}),
+        ...(typeof values['repo'] === 'string' ? { repo: values['repo'].split(',') } : {}),
         commit: !noCommit && !edit,
         ...(io.now ? { day: io.now } : {}),
       });

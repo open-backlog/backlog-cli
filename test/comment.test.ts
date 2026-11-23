@@ -143,6 +143,16 @@ describe('ob comment', () => {
       .toEqual([{ date: '2026-11-01', handle: 'jo', text: 'first\nmore' }, { date: '2026-11-02', handle: 'ana', text: 'second' }]);
   });
 
+  it('keeps a comment’s nesting and blank lines, and reads back what it writes (3.1.1)', () => {
+    const text = 'change set\n\n- backlog-cli\n  - src/x.ts (new)\n    - f(): does y\n- backlog-docs';
+    const file = withComment('---\nid: 1\n---\n', { date: '2026-11-22', handle: 'ana', text });
+    expect(file).toBe('---\nid: 1\n---\n\n## Comments\n- 2026-11-22 @ana: change set\n\n  - backlog-cli\n    - src/x.ts (new)\n      - f(): does y\n  - backlog-docs\n');
+    expect(commentsOf(file)).toEqual([{ date: '2026-11-22', handle: 'ana', text }]);
+    // As written by hand, with a tab, and a blank line before the next comment.
+    expect(commentsOf('## Comments\n- 2026-11-01 @jo: list\n  - a\n    - b\n\t- c\n\n- 2026-11-02 @ana: next  \n'))
+      .toEqual([{ date: '2026-11-01', handle: 'jo', text: 'list\n- a\n  - b\n- c' }, { date: '2026-11-02', handle: 'ana', text: 'next' }]);
+  });
+
   it('ob show counts the comments and --json lists them, and they follow the story through its moves', () => {
     const root = project();
     ob(root, 'comment', '1.1.1', 'Started');

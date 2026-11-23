@@ -21,7 +21,11 @@ const HEADING = /^## Comments[ \t]*$/;
 export interface Comment {
   date: string;
   handle: string;
-  /** The comment, with any continuation lines joined by "\n" (their indent removed). */
+  /**
+   * The comment, with any continuation lines joined by "\n": each loses the two spaces that
+   * continue the comment and keeps any indent beyond them (a nested list stays nested), and blank
+   * lines between them are kept.
+   */
   text: string;
 }
 
@@ -67,7 +71,8 @@ export function dayOf(day: Date): string {
  */
 export function withComment(file: string, comment: Comment): string {
   const nl = file.includes('\r\n') ? '\r\n' : '\n';
-  const lines = `- ${comment.date} @${comment.handle}: ${comment.text.split(/\r?\n/).join(`${nl}  `)}`;
+  // A blank line in the text stays empty rather than holding the two spaces.
+  const lines = `- ${comment.date} @${comment.handle}: ${comment.text.split(/\r?\n/).map((l, i) => (i && l.trim() ? `  ${l}` : l.trim() ? l : '')).join(nl)}`;
   const head = file.split(/\r?\n/).findIndex(l => HEADING.test(l));
   if (head === -1) {
     // A new section at the end, after a blank line, as you would type it.
@@ -94,13 +99,17 @@ export function commentsOf(file: string): Comment[] {
   if (head === -1) return [];
   const out: Comment[] = [];
   let current: Comment | null = null;
+  let blanks = 0;
   for (const l of all.slice(head + 1)) {
     if (/^#{1,2} /.test(l)) break;
     const m = /^- (\d{4}-\d{2}-\d{2}) @([a-z0-9][a-z0-9._-]*): ?(.*)$/.exec(l);
-    if (m) out.push(current = { date: m[1] ?? '', handle: m[2] ?? '', text: m[3] ?? '' });
-    else if (current && /^\s+\S/.test(l)) current.text += `\n${l.trim()}`;
+    if (!l.trim()) blanks++;
+    else if (m) out.push(current = { date: m[1] ?? '', handle: m[2] ?? '', text: (m[3] ?? '').trimEnd() });
+    // A continuation: without the two spaces (or tab) that continue the comment, keeping the rest.
+    else if (current && /^\s/.test(l)) current.text += '\n'.repeat(blanks + 1) + l.replace(/^( {1,2}|\t)/, '').trimEnd();
     // Anything else ends a comment; a list item that isn't one is ob validate's to report.
-    else if (l.trim()) current = null;
+    else current = null;
+    if (l.trim()) blanks = 0;
   }
   return out;
 }

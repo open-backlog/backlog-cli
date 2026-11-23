@@ -138,7 +138,7 @@ It never overwrites a file. If `backlog/config.yml` exists, it changes nothing a
 ### ob new
 
 ```sh
-ob new <type> <title> [--parent <id>] [--slug <slug>] [--edit] [--no-commit]
+ob new <type> <title> [--parent <id>] [--repo <name>] [--slug <slug>] [--edit] [--no-commit]
 ```
 
 This adds a `capability`, `epic`, `feature`, `story`, `bug`, `spike` or `task`. It takes the
@@ -150,6 +150,9 @@ first, so a mistake writes nothing.
 - `--parent <id>`: the item it's filed under. A feature needs an epic, and a story, bug, spike
   or task needs a feature. An epic may have a capability. A bug or task with no parent goes into
   this month's feature in epic 0, which is created if needed.
+- `--repo <name>`: the repository it's built in, for a backlog that lists its repositories under
+  `repos:` in `config.yml`. The name must be one of them. Join several with commas
+  (`--repo shop-api,shop-web`), written as a list.
 - `--slug <slug>`: the words in the file name (by default, taken from the title).
 - `--edit`: open the new file in `$VISUAL` or `$EDITOR`, then commit what you save.
 - `--no-commit`: write the file and leave committing to you.
