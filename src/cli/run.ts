@@ -9,6 +9,8 @@ import { addComment, addItem, BacklogError, installHook, planHook, buildTree, co
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 import { boardLaunch, runBoard } from './serve.js';
 import type { Launch } from './serve.js';
+import { colorEnabled, fit, fitSegments, STATUS_STYLE } from './style.js';
+import type { Segment } from './style.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
 export interface Output {
@@ -19,6 +21,8 @@ export interface Output {
   now?: Date;
   /** The terminal's width when writing to one; undefined when piped, so nothing is cut. */
   columns?: number;
+  /** Paint the output (4.1): set by STD from colorEnabled, by tests directly. */
+  color?: boolean;
   /** ob serve: runs the board and returns its exit code (default: in this terminal, runBoard). */
   board?: (launch: Launch) => number;
 }
@@ -27,6 +31,7 @@ const STD: Output = {
   out: t => process.stdout.write(t),
   err: t => process.stderr.write(t),
   ...(process.stdout.isTTY ? { columns: process.stdout.columns || 80 } : {}),
+  color: colorEnabled(process.env, process.stdout.isTTY === true),
 };
 
 /** The package's own version, from its package.json (two folders up from src/cli/ or dist/cli/). */
@@ -279,7 +284,8 @@ never your git email, so no email address is written to the file.
 
 Lists stories, bugs, spikes and tasks in build order (by number): ID, status, repo and title.
 Done items show for 30 days after they were moved to done (from git history); --all shows
-every one. Plain text, no colour; titles are cut to fit a terminal, never when piped.
+every one. In a terminal, statuses are in color and titles are cut to fit; piped, it is plain
+text, never cut (NO_COLOR=1 turns color off, FORCE_COLOR=1 on).
 
   --status <s>     todo, doing or done
   --type <t>       story, bug, spike or task
@@ -323,9 +329,12 @@ Each filter takes one value or several joined by commas (--status todo,doing).
       const rows = listed.items.map(i => ({ id: i.id, status: i.status ?? '', repo: reposOf(i).join(','), title: i.title }));
       const w = (f: (r: typeof rows[number]) => string) => Math.max(0, ...rows.map(r => f(r).length));
       const idW = w(r => r.id), stW = w(r => r.status), repoW = w(r => r.repo);
+      // Each word painted on its own, its padding plain; with color off, the same bytes as before 4.1.1.
+      const cell = (text: string, width: number, style?: Segment['style']): Segment[] => [{ text, ...(style ? { style } : {}) }, { text: ' '.repeat(width - text.length) + '  ' }];
       for (const r of rows) {
-        const line = [r.id.padEnd(idW), r.status.padEnd(stW), ...(repoW ? [r.repo.padEnd(repoW)] : []), r.title].join('  ');
-        io.out(fit(line, io.columns) + '\n');
+        const st = STATUS_STYLE[r.status as Status] as Segment['style'] | undefined;
+        const segments = [...cell(r.id, idW, 'bold'), ...cell(r.status, stW, st), ...(repoW ? cell(r.repo, repoW, 'cyan') : []), { text: r.title }];
+        io.out(fitSegments(segments, io.columns, io.color) + '\n');
       }
       if (listed.hiddenDone) io.err(`ob: ${listed.hiddenDone} done ${listed.hiddenDone === 1 ? 'item' : 'items'} finished over 30 days ago not shown; --all shows them\n`);
       return 0;
@@ -455,13 +464,6 @@ version); otherwise it runs that version from npm with npx, downloaded the first
 /** "3/9 done (33%)". */
 function progressText(p: Progress): string {
   return `${p.done}/${p.total} done (${p.percent}%)`;
-}
-
-/** A line cut to a terminal's width with "…" (whole characters); unchanged when piped. */
-function fit(line: string, columns: number | undefined): string {
-  const chars = [...line];
-  if (columns === undefined || chars.length <= columns) return line;
-  return chars.slice(0, Math.max(1, columns - 1)).join('').trimEnd() + '…';
 }
 
 const STATUSES: readonly Status[] = ['todo', 'doing', 'done'];

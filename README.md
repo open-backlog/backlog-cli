@@ -322,6 +322,13 @@ Each rule in the spec has a code that never changes meaning.
 Single-file rules use the spec's JSON Schema, which ships in this package under `schema/0.1/`, so
 `ob` agrees with any other tool that uses it.
 
+## Color
+
+In a terminal, `ob list` shows each status in its own color (todo gray, doing blue, done green,
+as on the board) and IDs in bold. Piped or saved output, and `--json`, are plain text, exactly as
+before. `NO_COLOR=1` turns color off ([no-color.org](https://no-color.org)); `FORCE_COLOR=1`
+turns it on even when piped.
+
 ## Git
 
 `ob` runs your own `git`, so your identity, keys, hooks and settings all apply, and it needs no

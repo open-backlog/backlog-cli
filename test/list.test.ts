@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { run } from '../src/cli/run.js';
+import { stripAnsi } from '../src/cli/style.js';
 import { listItems, loadBacklog, validateDir } from '../src/core/index.js';
 
 const tmps: string[] = [];
@@ -64,9 +65,9 @@ function project(inGit = true): string {
   return root;
 }
 
-function ob(root: string, args: string[], columns?: number) {
+function ob(root: string, args: string[], columns?: number, color?: boolean) {
   let out = '', err = '';
-  const code = run(['list', ...args], { out: t => { out += t; }, err: t => { err += t; }, cwd: root, now: NOW, ...(columns ? { columns } : {}) });
+  const code = run(['list', ...args], { out: t => { out += t; }, err: t => { err += t; }, cwd: root, now: NOW, ...(columns ? { columns } : {}), ...(color ? { color } : {}) });
   return { code, out, err };
 }
 const ids = (out: string) => out.split('\n').filter(Boolean).map(l => l.split(' ')[0]);
@@ -183,5 +184,37 @@ describe('ob list', () => {
     const l = listItems(loadBacklog(join(root, 'backlog')), { status: ['done'] }, { now: NOW });
     expect([l.items.map(i => i.id), l.hiddenDone]).toEqual([['1.2.2'], 1]);
     expect(listItems(loadBacklog(join(root, 'backlog')), {}, { now: NOW, days: 50 }).hiddenDone).toBe(0);
+  });
+
+  describe('in color (4.1.1)', () => {
+    it('paints statuses and bold IDs, and is otherwise the same text', () => {
+      const root = project();
+      const plain = ob(root, []).out, colored = ob(root, [], undefined, true).out;
+      expect(plain).not.toContain('\x1b');
+      expect(stripAnsi(colored)).toBe(plain);
+      const doing = colored.split('\n').find(l => l.includes('Card form')) ?? '';
+      expect(doing).toContain('\x1b[34mdoing\x1b[0m');
+      expect(doing.startsWith('\x1b[1m1.2.1\x1b[0m')).toBe(true);
+      expect(colored).toContain('\x1b[90mtodo\x1b[0m');
+      expect(colored).toContain('\x1b[32mdone\x1b[0m');
+      expect(colored).toContain('\x1b[36mshop-web\x1b[0m');
+    });
+
+    it('cuts to the terminal as the plain text is cut, closing every color before the …', () => {
+      const root = project();
+      const plain = ob(root, [], 20).out.split('\n').filter(Boolean);
+      const colored = ob(root, [], 20, true).out.split('\n').filter(Boolean);
+      expect(colored.map(stripAnsi)).toEqual(plain);
+      for (const line of colored) {
+        expect(line.endsWith('…')).toBe(true);
+        const body = line.slice(0, -1);
+        // eslint-disable-next-line no-control-regex -- counting escape codes
+        expect(body.match(/\x1b\[[0-9;]*m/g)?.filter(c => c !== '\x1b[0m').length).toBe(body.match(/\x1b\[0m/g)?.length);
+      }
+    });
+
+    it('never paints --json', () => {
+      expect(ob(project(), ['--json'], undefined, true).out).not.toContain('\x1b');
+    });
   });
 });

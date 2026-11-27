@@ -100,6 +100,13 @@ try {
   if (listed.join(', ') !== '0.1.1 todo, 1.1.1 doing, 1.1.9 todo') fail(`ob list printed ${JSON.stringify(listed)}`);
   else console.log('smoke: the installed ob list prints the items in build order');
 
+  // Color (4.1.1): piped is plain; FORCE_COLOR=1 paints it anyway.
+  const plainEnv = { ...process.env }; delete plainEnv.FORCE_COLOR; delete plainEnv.NO_COLOR;
+  const listIn = env => execFileSync(join(tmp, 'bin', 'ob'), ['list'], { cwd: join(code, 'src'), encoding: 'utf8', env });
+  if (listIn(plainEnv).includes('\x1b')) fail('ob list, piped, printed color codes');
+  else if (!listIn({ ...plainEnv, FORCE_COLOR: '1' }).includes('\x1b[')) fail('FORCE_COLOR=1 ob list printed no color');
+  else console.log('smoke: the installed ob list is plain when piped and in color with FORCE_COLOR=1');
+
   // ob tree and ob show on it.
   const tree = ob('tree').split('\n')[0];
   const shown = ob('show', '1.1.1').split('\n').slice(0, 2).join(' / ');
