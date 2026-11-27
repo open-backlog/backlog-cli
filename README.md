@@ -326,7 +326,9 @@ Single-file rules use the spec's JSON Schema, which ships in this package under 
 
 In a terminal, `ob list` shows each status in its own color (todo gray, doing blue, done green,
 as on the board) and IDs in bold. `ob validate` shows errors in red and warnings in yellow, each
-fix dimmed, and ends in a green `is valid` or a red count of errors. Piped or saved output, and `--json`, are plain text, exactly as
+fix dimmed, and ends in a green `is valid` or a red count of errors. `ob tree` colors each
+status, with IDs bold and progress dimmed; `ob show` colors its status, its children's statuses
+and its labels, and prints the item's file text exactly as it is, never colored. Piped or saved output, and `--json`, are plain text, exactly as
 before. `NO_COLOR=1` turns color off ([no-color.org](https://no-color.org)); `FORCE_COLOR=1`
 turns it on even when piped.
 

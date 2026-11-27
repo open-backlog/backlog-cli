@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { run } from '../src/cli/run.js';
+import { stripAnsi } from '../src/cli/style.js';
 import { buildTree, loadBacklog, newItemText, progressOf, showItem, walk } from '../src/core/index.js';
 
 const tmps: string[] = [];
@@ -61,9 +62,9 @@ function project(inGit = true): string {
   return root;
 }
 
-function ob(root: string, args: string[], columns?: number) {
+function ob(root: string, args: string[], columns?: number, color?: boolean) {
   let out = '', err = '';
-  const code = run(args, { out: t => { out += t; }, err: t => { err += t; }, cwd: root, now: NOW, ...(columns ? { columns } : {}) });
+  const code = run(args, { out: t => { out += t; }, err: t => { err += t; }, cwd: root, now: NOW, ...(columns ? { columns } : {}), ...(color ? { color } : {}) });
   return { code, out, err };
 }
 
@@ -183,5 +184,47 @@ describe('ob tree', () => {
     const root = project();
     for (const l of ob(root, ['tree'], 30).out.split('\n').filter(Boolean)) expect([...l].length, l).toBeLessThanOrEqual(30);
     expect(ob(root, ['tree']).out).toContain('  2  doing  1/5 done (20%)  Build');
+  });
+});
+
+describe('in color (4.1.3)', () => {
+  it('ob tree paints statuses, bold IDs and dim progress; otherwise the same text, also cut', () => {
+    const root = project();
+    const plain = ob(root, ['tree']).out, colored = ob(root, ['tree'], undefined, true).out;
+    expect(plain).not.toContain('\x1b');
+    expect(stripAnsi(colored)).toBe(plain);
+    expect(colored).toContain('    \x1b[1m2.3.2\x1b[0m  \x1b[34mdoing\x1b[0m  ob new');
+    expect(colored).toContain('\x1b[2m1/5 done (20%)\x1b[0m  Build');
+    expect(colored).toContain('\x1b[32mdone\x1b[0m');
+    expect(colored).toContain('\x1b[90mtodo\x1b[0m');
+    const cut = ob(root, ['tree'], 30).out.split('\n'), cutColored = ob(root, ['tree'], 30, true).out.split('\n');
+    expect(cutColored.map(stripAnsi)).toEqual(cut);
+    expect(cut.some(l => l.endsWith('…'))).toBe(true);
+  });
+
+  it('ob show paints its status, labels, children and hashes, never the file text', () => {
+    const root = project();
+    for (const id of ['2.3.2', '2.3']) {
+      const plain = ob(root, ['show', id]).out, colored = ob(root, ['show', id], undefined, true).out;
+      expect(stripAnsi(colored), id).toBe(plain);
+      const text = showItem(loadBacklog(join(root, 'backlog')), id).text.trimEnd();
+      expect(colored, id).toContain(`\n\n${text}\n`);
+    }
+    const story = ob(root, ['show', '2.3.2'], undefined, true).out;
+    expect(story.startsWith('\x1b[2mC1-identity › 2-build › 2.3-cli › 2.3.2-ob-new\x1b[0m\n')).toBe(true);
+    expect(story).toContain('2.3.2-ob-new.md  \x1b[34mdoing\x1b[0m\n');
+    expect(story).toContain('\x1b[1mHistory:\x1b[0m');
+    // eslint-disable-next-line no-control-regex -- matching an escape code
+    expect(story).toMatch(/ {2}2026-11-17 {2}\x1b\[2m[0-9a-f]+\x1b\[0m {2}Ana Silva/);
+    const feature = ob(root, ['show', '2.3'], undefined, true).out;
+    expect(feature).toContain('\x1b[1mChildren:\x1b[0m\n  \x1b[1m2.3.1\x1b[0m  \x1b[32mdone\x1b[0m     ob init\n');
+    expect(feature).toContain('\x1b[1mProgress:\x1b[0m 1/5 done (20%)');
+    expect(ob(root, ['show', '2.3.9'], undefined, true).out).toContain('\x1b[31m(deleted)\x1b[0m');
+  });
+
+  it('--json is never painted', () => {
+    const root = project();
+    expect(ob(root, ['tree', '--json'], undefined, true).out).not.toContain('\x1b');
+    expect(ob(root, ['show', '2.3', '--json'], undefined, true).out).not.toContain('\x1b');
   });
 });

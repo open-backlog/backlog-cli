@@ -9,7 +9,7 @@ import { addComment, addItem, BacklogError, installHook, planHook, buildTree, co
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 import { boardLaunch, runBoard } from './serve.js';
 import type { Launch } from './serve.js';
-import { colorEnabled, fit, fitSegments, formatProblemColored, paint, STATUS_STYLE } from './style.js';
+import { colorEnabled, fitSegments, formatProblemColored, paint, STATUS_STYLE } from './style.js';
 import type { Segment } from './style.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
@@ -366,19 +366,24 @@ capability, epic or feature) and the commits that touched it. An ID pruned with 
         return 0;
       }
       const shown = relative(cwd, join(b.dir, s.path));
-      const lines = [s.breadcrumb.join(' › ')];
-      lines.push(s.deleted ? `${shown} (deleted)` : `${shown}${s.status ? `  ${s.status}` : ''}`);
+      // In color (4.1.3): breadcrumb dim, statuses in their colors, labels bold, hashes dim; the
+      // file's own text (s.text) is never painted.
+      const on = io.color;
+      const label = (text: string) => paint(on, 'bold', text);
+      const status = (text: string, pad = 0) => (STATUS_STYLE[text as Status] ? paint(on, STATUS_STYLE[text as Status], text) : text) + ' '.repeat(Math.max(0, pad - text.length));
+      const lines = [paint(on, 'dim', s.breadcrumb.join(' › '))];
+      lines.push(s.deleted ? `${shown} ${paint(on, 'red', '(deleted)')}` : `${shown}${s.status ? `  ${status(s.status)}` : ''}`);
       if (s.deleted) lines.push(`Deleted in ${s.deleted.hash} on ${s.deleted.date} by ${s.deleted.author}: ${s.deleted.subject}. Its last version:`);
-      if (s.progress) lines.push(`Progress: ${progressText(s.progress)}, ${s.progress.doing} doing, ${s.progress.todo} todo`);
+      if (s.progress) lines.push(`${label('Progress:')} ${progressText(s.progress)}, ${s.progress.doing} doing, ${s.progress.todo} todo`);
       if (s.sameId.length) lines.push(`Also id ${id}: ${s.sameId.join(', ')} (run ob validate --fix)`);
       const lastComment = s.comments[s.comments.length - 1];
-      if (lastComment) lines.push(`Comments: ${s.comments.length}, the last on ${lastComment.date} by @${lastComment.handle}`);
+      if (lastComment) lines.push(`${label('Comments:')} ${s.comments.length}, the last on ${lastComment.date} by @${lastComment.handle}`);
       lines.push('', s.text.trimEnd());
       if (s.children.length) {
         const w = Math.max(...s.children.map(c => c.id.length));
-        lines.push('', 'Children:', ...s.children.map(c => `  ${c.id.padEnd(w)}  ${(c.status ?? c.type).padEnd(7)}  ${c.title}`));
+        lines.push('', label('Children:'), ...s.children.map(c => `  ${paint(on, 'bold', c.id)}${' '.repeat(w - c.id.length)}  ${status(c.status ?? c.type, 7)}  ${c.title}`));
       }
-      if (s.history.length) lines.push('', 'History:', ...s.history.map(h => `  ${h.date}  ${h.hash}  ${h.author}  ${h.subject}`));
+      if (s.history.length) lines.push('', label('History:'), ...s.history.map(h => `  ${h.date}  ${paint(on, 'dim', h.hash)}  ${h.author}  ${h.subject}`));
       io.out(lines.join('\n') + '\n');
       return 0;
     },
@@ -424,8 +429,15 @@ items show for 30 days, as in ob list; the progress counts every item.
       if (values['json'] === true) io.out(JSON.stringify(roots, null, 2) + '\n');
       else {
         const print = (o: Out, depth: number) => {
-          const head = `${'  '.repeat(depth)}${o.id}  ${(o.status ?? '-').padEnd(5)}`;
-          io.out(fit(`${head}  ${o.progress ? `${progressText(o.progress)}  ` : ''}${o.title}`, io.columns) + '\n');
+          // Indent, ID bold, status in its color, progress dim, title plain; padding plain (4.1.3).
+          const status = o.status ?? '-';
+          const segments: Segment[] = [
+            { text: '  '.repeat(depth) }, { text: o.id, style: 'bold' }, { text: '  ' },
+            o.status ? { text: status, style: STATUS_STYLE[o.status] } : { text: status }, { text: ' '.repeat(Math.max(0, 5 - status.length)) + '  ' },
+            ...(o.progress ? [{ text: progressText(o.progress), style: 'dim' as const }, { text: '  ' }] : []),
+            { text: o.title },
+          ];
+          io.out(fitSegments(segments, io.columns, io.color) + '\n');
           o.children.forEach(c => print(c, depth + 1));
         };
         roots.forEach(r => print(r, 0));
