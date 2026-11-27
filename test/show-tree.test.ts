@@ -187,6 +187,58 @@ describe('ob tree', () => {
   });
 });
 
+describe('ob tree by level (4.2.1)', () => {
+  const lines = (out: string) => out.split('\n').filter(Boolean);
+  const ids = (out: string) => lines(out).map(l => l.trim().split(' ')[0]);
+
+  it('epic, feature and capability stop below that type, in every branch', () => {
+    const root = project();
+    expect(ob(root, ['tree', 'epic'])).toEqual({ code: 0, err: '', out: 'C1  doing  1/5 done (20%)  Identity\n  2  doing  1/5 done (20%)  Build\n1  done   1/1 done (100%)  Launch\n' });
+    const feature = ob(root, ['tree', 'feature']).out;
+    expect(ids(feature)).toEqual(['C1', '2', '2.3', '1', '1.1']);
+    expect(lines(feature)).toContain('    2.3  doing  1/5 done (20%)  CLI');
+    expect(lines(feature)).toContain('  1.1  done   1/1 done (100%)  Site');
+    expect(ids(ob(root, ['tree', 'capability']).out)).toEqual(['C1', '1']);
+  });
+
+  it('story, its plural and no level are everything; numbers, --depth and any case agree', () => {
+    const root = project();
+    const all = ob(root, ['tree']).out;
+    for (const l of ['story', 'stories', 'bug', 'Tasks']) expect(ob(root, ['tree', l]).out, l).toBe(all);
+    expect(ob(root, ['tree', '2']).out).toBe(ob(root, ['tree', '--depth', '2']).out);
+    expect(ob(root, ['tree', '--depth', 'feature']).out).toBe(ob(root, ['tree', 'feature']).out);
+    expect(ob(root, ['tree', 'EPIC']).out).toBe(ob(root, ['tree', 'epic']).out);
+    expect(ob(root, ['tree', 'Features']).out).toBe(ob(root, ['tree', 'feature']).out);
+  });
+
+  it('--json follows the level, and progress still counts everything', () => {
+    const root = project();
+    type J = { id: string; progress: unknown; children: J[] };
+    const tree = JSON.parse(ob(root, ['tree', 'feature', '--json']).out) as J[];
+    const flat = (n: J): J[] => [n, ...n.children.flatMap(flat)];
+    const byId = new Map(tree.flatMap(flat).map(n => [n.id, n]));
+    expect([...byId.keys()]).toEqual(['C1', '2', '2.3', '1', '1.1']);
+    expect(byId.get('2.3')?.children).toEqual([]);
+    expect(byId.get('1.1')?.children).toEqual([]);
+    const core = buildTree(loadBacklog(join(root, 'backlog')).items).byId;
+    for (const [id, n] of byId) {
+      const node = core.get(id);
+      expect(node && n.progress, id).toEqual(node && progressOf(node));
+    }
+  });
+
+  it('refuses a level it does not know, or the level given twice (exit 2)', () => {
+    const root = project();
+    for (const args of [['0'], ['sprint'], ['feature', '--depth', '2'], ['epic', 'feature'], ['--depth', 'x']]) {
+      const r = ob(root, ['tree', ...args]);
+      expect(r.code, args.join(' ')).toBe(2);
+      expect(r.out, args.join(' ')).toBe('');
+    }
+    expect(ob(root, ['tree', 'sprint']).err).toContain('"sprint" is not a level: use a number from 1, or capability, epic, feature or story');
+    expect(ob(root, ['tree', 'feature', '--depth', '2']).err).toContain('give the level once: ob tree feature or ob tree --depth feature');
+  });
+});
+
 describe('in color (4.1.3)', () => {
   it('ob tree paints statuses, bold IDs and dim progress; otherwise the same text, also cut', () => {
     const root = project();

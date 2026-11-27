@@ -238,14 +238,24 @@ deleted, with the commit that removed it.
 ### ob tree
 
 ```sh
-ob tree [--depth <n>] [--all] [--json]
+ob tree [<level>] [--depth <level>] [--all] [--json]
 ```
 
 This prints the plan: capabilities, epics and features with their status and `done/total
 (percent)`, and the items under them, in build order. Done items older than 30 days are left
 out, as in `ob list`, but the counts include them.
 
-- `--depth <n>`: show `n` levels (1 shows the top items only).
+```sh
+ob tree epic       # the big picture: capabilities and epics
+ob tree feature    # down to features
+ob tree            # everything (the same as ob tree story)
+```
+
+- `<level>`: how deep to go: `epic`, `feature` or `story` (or `capability`), in any case,
+  singular or plural, with `bug`, `spike` and `task` the same as `story`; or a number of
+  levels from the top (1 shows the top items only). A name means the same in every backlog,
+  with or without capabilities; progress always counts everything.
+- `--depth <level>`: the same, as an option (give the level once).
 - `--all`: done items of any age.
 - `--json`: the same tree, nested, as JSON.
 

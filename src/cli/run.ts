@@ -390,22 +390,25 @@ capability, epic or feature) and the commits that touched it. An ID pruned with 
   },
   tree: {
     summary: 'the plan as a tree: capabilities, epics, features with progress, and their items',
-    help: `Usage: ob tree [--depth <n>] [--all] [--json]
+    help: `Usage: ob tree [<level>] [--all] [--json]
 
 Prints capabilities, epics and features with their status and progress (done of total, worked
 out from their stories, bugs, spikes and tasks), and the items under them, in build order. Done
 items show for 30 days, as in ob list; the progress counts every item.
 
-  --depth <n>  show n levels (1: the top items only)
+  <level>      how deep to go: epic, feature or story (or capability), or a number of levels
+               (1: the top items only); also --depth <level>
   --all        done items of any age
   --json       the same tree, as JSON
 `,
     options: { depth: { type: 'string' }, all: { type: 'boolean' }, json: { type: 'boolean' } },
     run: (values, positionals, io) => {
-      if (positionals.length) return usageError(`tree takes no arguments (got "${positionals.join(' ')}")`, 'tree', io);
-      const depthArg = values['depth'];
-      const maxDepth = depthArg === undefined ? Infinity : Number(depthArg);
-      if (depthArg !== undefined && (!Number.isInteger(maxDepth) || maxDepth < 1)) return usageError(`--depth takes a whole number from 1 (got "${String(depthArg)}")`, 'tree', io);
+      const depthArg = values['depth'] as string | undefined;
+      if (positionals.length > 1) return usageError(`tree takes one level (got "${positionals.join(' ')}")`, 'tree', io);
+      if (positionals.length && depthArg !== undefined) return usageError('give the level once: ob tree feature or ob tree --depth feature', 'tree', io);
+      const levelArg = positionals[0] ?? depthArg;
+      const level = levelArg === undefined ? { depth: Infinity } : parseLevel(levelArg);
+      if (!level) return usageError(`"${String(levelArg)}" is not a level: use a number from 1, or capability, epic, feature or story`, 'tree', io);
       const cwd = realpathSync(io.cwd ?? process.cwd());
       const b = loadBacklog(findBacklog(cwd));
       const now = io.now ?? new Date();
@@ -422,7 +425,7 @@ items show for 30 days, as in ob list; the progress counts every item.
         const p = story ? null : progressOf(n);
         return {
           id: n.item.id, type: n.item.type, title: n.item.title, status: story ? n.item.status ?? null : p?.status ?? null, path: n.item.path, progress: p,
-          children: depth + 1 < maxDepth ? n.children.filter(visible).map(c => toOut(c, depth + 1)) : [],
+          children: shownChildren(n, depth, level) ? n.children.filter(visible).map(c => toOut(c, depth + 1)) : [],
         };
       };
       const roots = buildTree(b.items).roots.filter(visible).map(r => toOut(r, 0));
@@ -476,6 +479,27 @@ version); otherwise it runs that version from npm with npx, downloaded the first
     },
   },
 };
+
+/** How deep ob tree goes (4.2.1): a number of levels from the top, or "nothing below this type". */
+type Level = { depth: number } | { rank: number };
+
+/** A type's place in the plan: capability 0, epic 1, feature 2, story, bug, spike and task 3. */
+const LEVEL_RANK: Record<string, number> = { capability: 0, epic: 1, feature: 2, story: 3, bug: 3, spike: 3, task: 3 };
+
+/** A level from `ob tree <level>` or `--depth <level>`: a whole number from 1, or a type name (any case, singular or plural); undefined if neither. */
+function parseLevel(text: string): Level | undefined {
+  if (/^\d+$/.test(text)) return Number(text) >= 1 ? { depth: Number(text) } : undefined;
+  const name = text.toLowerCase();
+  const rank = LEVEL_RANK[name] ?? LEVEL_RANK[name.replace(/ies$/, 'y').replace(/s$/, '')];
+  return rank === undefined ? undefined : { rank };
+}
+
+/** Whether ob tree shows a node's children: by depth from the top, or while its type ranks above the level. */
+function shownChildren(node: Node, depth: number, level: Level): boolean {
+  if ('depth' in level) return depth + 1 < level.depth;
+  const rank = isStoryLevel(node.item) ? 3 : LEVEL_RANK[node.item.type] ?? 3;
+  return rank < level.rank;
+}
 
 /** "3/9 done (33%)". */
 function progressText(p: Progress): string {
