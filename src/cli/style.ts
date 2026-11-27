@@ -3,6 +3,8 @@
  * dependency). The core never colors; only src/cli/ does, and --json and stderr stay plain.
  */
 
+import type { Problem } from '../core/index.js';
+
 const CODES = { bold: 1, dim: 2, red: 31, green: 32, yellow: 33, blue: 34, cyan: 36, gray: 90 } as const;
 export type Style = keyof typeof CODES;
 
@@ -63,4 +65,14 @@ export function fitSegments(segments: Segment[], columns: number | undefined, on
     out += s.style ? paint(true, s.style, taken) : taken;
   }
   return wasCut ? out + '…' : out;
+}
+
+/**
+ * formatProblem's line, painted: the path bold, `code [rule]` red for an error and yellow for a
+ * warning, `warning: ` yellow, the message plain, `Fix: …` dim. Off, it is formatProblem(p).
+ */
+export function formatProblemColored(p: Problem, on: boolean | undefined): string {
+  const tone: Style = p.severity === 'warning' ? 'yellow' : 'red';
+  const warning = p.severity === 'warning' ? `${paint(on, 'yellow', 'warning:')} ` : '';
+  return `${paint(on, 'bold', p.path)}: ${paint(on, tone, `${p.code} [${p.rule}]`)} ${warning}${p.message}. ${paint(on, 'dim', `Fix: ${p.fix}.`)}`;
 }

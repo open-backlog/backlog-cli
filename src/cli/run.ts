@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 
-import { addComment, addItem, BacklogError, installHook, planHook, buildTree, commit, findBacklog, fixDuplicates, formatProblem, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
+import { addComment, addItem, BacklogError, installHook, planHook, buildTree, commit, findBacklog, fixDuplicates, initBacklog, initDir, isStoryLevel, ITEM_TYPES, listItems, loadBacklog, message, moveItem, progressOf, recentlyDone, reposOf, repoRoot, showItem, SPEC_URL, SPEC_VERSION, validateDir } from '../core/index.js';
 import type { Node, Progress, Renumbered, Status } from '../core/index.js';
 import { boardLaunch, runBoard } from './serve.js';
 import type { Launch } from './serve.js';
-import { colorEnabled, fit, fitSegments, STATUS_STYLE } from './style.js';
+import { colorEnabled, fit, fitSegments, formatProblemColored, paint, STATUS_STYLE } from './style.js';
 import type { Segment } from './style.js';
 
 /** Where ob writes (stdout and stderr, or a test's buffers), and what it runs with; tests set them. */
@@ -190,16 +190,20 @@ or as a git pre-commit hook.
       }
       const shown = (p: string) => relative(cwd, join(dir, p));
       for (const r of renumbered) {
-        io.out(`Renumbered ${r.from} to ${r.to}: ${shown(r.path)} → ${shown(r.newPath)}\n`);
+        io.out(`Renumbered ${paint(io.color, 'bold', r.from)} to ${paint(io.color, 'bold', r.to)}: ${shown(r.path)} → ${shown(r.newPath)}\n`);
         for (const c of r.children) io.out(`  parent ${r.from} → ${r.to}: ${shown(c.path)}\n`);
       }
       if (committed) io.out(`Committed: ${message.renumber(renumbered)}\n`);
-      for (const p of problems) io.out(formatProblem({ ...p, path: shown(p.path) }) + '\n');
-      const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+      for (const p of problems) io.out(formatProblemColored({ ...p, path: shown(p.path) }, io.color) + '\n');
+      // A count is painted only when it isn't 0: errors red, warnings yellow.
+      const count = (n: number, word: string, style?: 'red' | 'yellow') => {
+        const text = `${n} ${word}${n === 1 ? '' : 's'}`;
+        return style && n > 0 ? paint(io.color, style, text) : text;
+      };
       const items = backlog ? `, ${count(backlog.items.length, 'item')}` : '';
       io.out(problems.length
-        ? `${shown('') || '.'}/: ${count(errors, 'error')}, ${count(warnings, 'warning')}${items}\n`
-        : `${shown('') || '.'}/ is valid${items}\n`);
+        ? `${shown('') || '.'}/: ${count(errors, 'error', 'red')}, ${count(warnings, 'warning', 'yellow')}${items}\n`
+        : `${shown('') || '.'}/ ${paint(io.color, 'green', 'is valid')}${items}\n`);
       return errors ? 1 : 0;
     },
   },

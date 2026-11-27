@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { run } from '../src/cli/run.js';
-import { fixDuplicates, initBacklog, validateDir } from '../src/core/index.js';
+import { fixDuplicates, formatProblem, initBacklog, validateDir } from '../src/core/index.js';
+import type { Problem } from '../src/core/index.js';
+import { formatProblemColored, stripAnsi } from '../src/cli/style.js';
 
 const fixtures = fileURLToPath(new URL('fixtures/', import.meta.url));
 const tmps: string[] = [];
@@ -15,6 +17,12 @@ afterEach(() => { for (const t of tmps.splice(0)) rmSync(t, { recursive: true, f
 function ob(cwd: string, ...args: string[]) {
   let out = '', err = '';
   const code = run(['validate', ...args], { out: t => { out += t; }, err: t => { err += t; }, cwd });
+  return { code, out, err };
+}
+/** ob validate with color on, as in a terminal (4.1.2). */
+function obColor(cwd: string, ...args: string[]) {
+  let out = '', err = '';
+  const code = run(['validate', ...args], { out: t => { out += t; }, err: t => { err += t; }, cwd, color: true });
   return { code, out, err };
 }
 
@@ -198,4 +206,50 @@ describe('ob validate --fix', () => {
     expect(snapshot(dir)).toEqual(was);
     expect(validateDir(dir).problems.some(p => p.code === 'OB004')).toBe(true);
   });
+
+  /* eslint-disable no-control-regex -- the color tests match escape codes */
+  describe('in color (4.1.2)', () => {
+    it('paints an error red, its fix dim and its count red; otherwise the same text and exit code', () => {
+      const dir = join(fixtures, 'invalid', 'parent');
+      const plain = ob(dir), colored = obColor(dir);
+      expect(plain.out).not.toContain('\x1b');
+      expect(colored.code).toBe(plain.code);
+      expect(stripAnsi(colored.out)).toBe(plain.out);
+      const [line] = colored.out.split('\n');
+      expect(line).toContain('\x1b[31mOB001 [parent]\x1b[0m');
+      expect(line).toMatch(/^\x1b\[1mbacklog\/\S+\.md\x1b\[0m: /);
+      expect(line).toMatch(/\x1b\[2mFix: .+\.\x1b\[0m$/);
+      expect(colored.out.trimEnd().split('\n').at(-1)).toMatch(/\x1b\[31m\d+ errors?\x1b\[0m, 0 warnings, /);
+    });
+
+    it('paints a warning yellow', () => {
+      const dir = join(fixtures, 'tools', 'local-clones', 'portfolio');
+      const plain = ob(dir), colored = obColor(dir);
+      expect(stripAnsi(colored.out)).toBe(plain.out);
+      expect(colored.out).toContain('\x1b[33mOB017 [local-clones]\x1b[0m \x1b[33mwarning:\x1b[0m ');
+      expect(colored.out).toContain('0 errors, \x1b[33m1 warning\x1b[0m');
+    });
+
+    it('a valid backlog ends in a green "is valid"; --json is never painted', () => {
+      const root = repo();
+      expect(obColor(root).out).toBe('backlog/ \x1b[32mis valid\x1b[0m, 2 items\n');
+      expect(obColor(join(fixtures, 'invalid', 'parent'), '--json').out).not.toContain('\x1b');
+    });
+
+    it('--fix paints the two IDs it renumbered', () => {
+      const root = repo();
+      merge(root, { 'stories/todo/1.1.1-coupon.md': story('1.1.1', 'Coupon', '1.1') }, { 'stories/todo/1.1.1-gift-card.md': story('1.1.1', 'Gift card', '1.1') });
+      expect(obColor(root, '--fix').out.split('\n')[0]).toMatch(/^Renumbered \x1b\[1m1\.1\.1\x1b\[0m to \x1b\[1m1\.1\.2\x1b\[0m: /);
+    });
+
+    it('formatProblemColored off is formatProblem, for an error and a warning', () => {
+      const error: Problem = { severity: 'error', code: 'OB001', rule: 'parent', path: 'a.md', message: 'no parent 9', fix: 'set parent' };
+      const warning: Problem = { ...error, severity: 'warning', code: 'OB017', rule: 'local-clones' };
+      for (const p of [error, warning]) {
+        expect(formatProblemColored(p, false)).toBe(formatProblem(p));
+        expect(stripAnsi(formatProblemColored(p, true))).toBe(formatProblem(p));
+      }
+    });
+  });
+  /* eslint-enable no-control-regex */
 });
